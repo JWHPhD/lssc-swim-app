@@ -2,16 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Swimmer Schedule Maker | LSSC</title>
+  <title>Swimmer Schedule Maker | Lakeshore Swim Club</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       font-family: Arial, sans-serif;
       max-width: 700px;
       margin: 2rem auto;
-      padding: 0 1rem 2rem;
+      padding: 0 1rem 4rem;
       background: linear-gradient(180deg, #eaf4ff 0%, #cde5fa 100%);
+      color: #000;
     }
+
     header {
       text-align: center;
       background-color: #002855;
@@ -74,12 +76,61 @@
     }
     .event-title { font-weight: bold; }
     .muted { color: #666; font-size: 0.85rem; }
+
+    footer {
+      text-align: center;
+      color: #333;
+      font-size: 0.85rem;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ccc;
+    }
+
+    .footer-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .social-icons {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 0.3rem;
+    }
+
+    .social-icons a {
+      display: inline-block;
+      margin: 0 8px;
+      color: #004aad;
+      width: 24px;
+      height: 24px;
+      transition: transform 0.2s ease, color 0.2s ease;
+    }
+    .social-icons a:hover { color: #007bff; transform: scale(1.1); }
+    .social-icons svg { width: 24px; height: 24px; vertical-align: middle; }
+    footer a { color: #004aad; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    .globe-icon {
+      width: 16px;
+      height: 16px;
+      vertical-align: middle;
+      margin-right: 4px;
+      color: #004aad;
+    }
+    .created-by {
+      margin-top: 0.6rem;
+      font-size: 0.85rem;
+      text-align: center;
+      color: #444;
+    }
   </style>
 </head>
 <body>
   <header>
-    <img src="/static/logo.png" alt="LSSC Logo" />
-    <h1>Lake Shore Swim Club</h1>
+    <img src="/static/logo.png" alt="Lakeshore Swim Club Logo" />
+    <h1>Lakeshore Swim Club</h1>
     <h2>Swimmer Schedule Maker</h2>
   </header>
 
@@ -104,6 +155,30 @@
     <div id="previewContent"></div>
   </div>
 
+  <footer>
+    <div class="footer-top">
+      <div class="social-icons">
+        <a href="https://www.facebook.com/LakeShoreSwimClub" target="_blank" aria-label="Facebook">
+          <svg viewBox="0 0 24 24">
+            <path fill="currentColor" d="M22.7 0H1.3C.6 0 0 .6 0 1.3v21.3C0 23.4.6 24 1.3 24H12V14.7H9.3v-3.6H12V8.4c0-2.7 1.6-4.2 4-4.2 1.1 0 2 .1 2.3.1v2.7h-1.6c-1.2 0-1.4.6-1.4 1.4v1.8h2.8l-.4 3.6h-2.4V24h4.8c.7 0 1.3-.6 1.3-1.3V1.3C24 .6 23.4 0 22.7 0z"/>
+          </svg>
+        </a>
+      </div>
+      <p>
+        <svg class="globe-icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm7.94 9h-3.14c-.05-1.86-.34-3.57-.83-5.02A8.03 8.03 0 0 1 19.94 11zM12 4c.74 0 1.45.1 2.13.3.46 1.34.75 3.02.81 4.7H9.06c.06-1.68.35-3.36.81-4.7A8 8 0 0 1 12 4zM4.06 13h3.14c.05 1.86.34 3.57.83 5.02A8.03 8.03 0 0 1 4.06 13zm3.14-2H4.06a8.03 8.03 0 0 1 3.97-5.02A18.1 18.1 0 0 0 7.2 11zm1.86 2h5.88c-.06 1.68-.35 3.36-.81 4.7A8 8 0 0 1 12 20a8 8 0 0 1-2.13-.3c-.46-1.34-.75-3.02-.81-4.7zM14.8 11H9.2c.05-1.68.33-3.36.79-4.7.43-.13.88-.2 1.33-.2s.9.07 1.33.2c.46 1.34.74 3.02.79 4.7zm.26 2c-.05 1.68-.33 3.36-.79 4.7.43.13.88.2 1.33.2s.9-.07 1.33-.2c.46-1.34.74-3.02.79-4.7h-2.66zm1.8 5.02c.49-1.45.78-3.16.83-5.02h3.14a8.03 8.03 0 0 1-3.97 5.02z"/>
+        </svg>
+        Visit the lssc website at:
+        <a href="https://www.gomotionapp.com/team/lelssc/page/home" target="_blank">
+          www.gomotionapp.com/team/lelssc/page/home
+        </a>
+      </p>
+    </div>
+    <div class="created-by">
+      <p>Created by: <strong>Joe Hammond</strong></p>
+    </div>
+  </footer>
+
   <script>
     const btn = document.getElementById("submitBtn");
     const statusEl = document.getElementById("status");
@@ -112,169 +187,103 @@
     const previewBox = document.getElementById("previewBox");
     const previewContent = document.getElementById("previewContent");
 
-    // 1) when user chooses a PDF, fetch swimmer list
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
       if (!file) return;
-
       statusEl.textContent = "Reading heat sheet and finding swimmers...";
       swimmerSelect.innerHTML = '<option value="">Loading...</option>';
       previewBox.style.display = "none";
       previewContent.innerHTML = "";
-
       const formData = new FormData();
       formData.append("file", file);
-
       try {
-        const res = await fetch("/list-swimmers", {
-          method: "POST",
-          body: formData
-        });
-        if (!res.ok) {
-          statusEl.textContent = "Could not read swimmers from PDF.";
-          swimmerSelect.innerHTML = '<option value="">-- Error loading swimmers --</option>';
-          return;
-        }
+        const res = await fetch("/list-swimmers", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("Error loading swimmers");
         const data = await res.json();
-        const swimmers = data.swimmers || [];
-
-        if (swimmers.length === 0) {
-          swimmerSelect.innerHTML = '<option value="">No swimmers found in this PDF</option>';
-          statusEl.textContent = "No swimmer names were recognized.";
-          return;
-        }
-
         swimmerSelect.innerHTML = "";
-        swimmers.forEach(name => {
+        data.swimmers.forEach(name => {
           const opt = document.createElement("option");
           opt.value = name;
           opt.textContent = name;
           swimmerSelect.appendChild(opt);
         });
-
         statusEl.textContent = "Swimmers loaded. Pick one to preview.";
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Error connecting to backend while loading swimmers.";
+      } catch {
+        statusEl.textContent = "Error reading swimmers from PDF.";
         swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
       }
     });
 
-    // 2) when user picks a swimmer, preview their events
     swimmerSelect.addEventListener("change", async () => {
       const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
-      if (!file || !swimmerName) {
-        previewBox.style.display = "none";
-        previewContent.innerHTML = "";
-        return;
-      }
-
+      if (!file || !swimmerName) return;
       statusEl.textContent = "Loading events for " + swimmerName + "...";
-
       const formData = new FormData();
       formData.append("swimmer_name", swimmerName);
       formData.append("file", file);
-
       try {
-        const res = await fetch("/extract", {
-          method: "POST",
-          body: formData
-        });
-        if (!res.ok) {
-          statusEl.textContent = "Couldn't load events for this swimmer.";
-          previewBox.style.display = "none";
-          return;
-        }
+        const res = await fetch("/extract", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("Error loading events");
         const data = await res.json();
+        previewBox.style.display = "block";
+        previewContent.innerHTML = "";
         const events = data.events || [];
-
         if (events.length === 0) {
-          previewBox.style.display = "block";
-          previewContent.innerHTML = '<p class="muted">No events found for this swimmer in the uploaded PDF.</p>';
+          previewContent.innerHTML = '<p class="muted">No events found for this swimmer.</p>';
           statusEl.textContent = "No events found.";
           return;
         }
-
-        previewBox.style.display = "block";
-        previewContent.innerHTML = "";
         events.forEach(ev => {
+          const totalHeats = ev.total_heats ? ev.total_heats : "?";
           const div = document.createElement("div");
           div.className = "event";
           div.innerHTML = `
             <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
-            <div>Heat: <b>${ev.heat}</b> | Lane: <b>${ev.lane ?? ""}</b> | Seed: <b>${ev.seed_time ?? ""}</b></div>
-          `;
+            <div>
+              Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> | 
+              Lane: <b>${ev.lane ?? ""}</b> | 
+              Seed: <b>${ev.seed_time ?? ""}</b>
+            </div>`;
           previewContent.appendChild(div);
         });
-
-        statusEl.textContent = "Preview loaded. Click Generate Schedule to download.";
-      } catch (err) {
-        console.error(err);
+        statusEl.textContent = "Preview ready. Click Generate Schedule to download.";
+      } catch {
         statusEl.textContent = "Error loading swimmer events.";
-        previewBox.style.display = "none";
       }
     });
 
-    // 3) Generate PDF for selected swimmer
     btn.addEventListener("click", async () => {
       const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
-
-      if (!file) {
-        statusEl.textContent = "Please choose a PDF heat sheet.";
+      if (!file || !swimmerName) {
+        statusEl.textContent = "Please upload a file and select a swimmer.";
         return;
       }
-      if (!swimmerName) {
-        statusEl.textContent = "Please pick a swimmer from the dropdown.";
-        return;
-      }
-
       btn.disabled = true;
       btn.classList.remove("success");
       btn.textContent = "Generating...";
-      statusEl.textContent = "Generating PDF for " + swimmerName + "...";
-
       const formData = new FormData();
       formData.append("swimmer_name", swimmerName);
       formData.append("file", file);
-
       try {
-        const response = await fetch("/generate-pdf", {
-          method: "POST",
-          body: formData
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          statusEl.textContent = "Server error: " + response.status + " – " + text;
-          btn.disabled = false;
-          btn.textContent = "Generate Schedule";
-          return;
-        }
-
-        const blob = await response.blob();
+        const res = await fetch("/generate-pdf", { method: "POST", body: formData });
+        if (!res.ok) throw new Error("PDF generation failed");
+        const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
-
         const a = document.createElement("a");
         a.href = url;
         a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
-        document.body.appendChild(a);
         a.click();
-        a.remove();
-
         btn.classList.add("success");
         btn.textContent = "Schedule Ready ✓";
-        statusEl.textContent = "Success! PDF downloaded for " + swimmerName + ".";
-
+        statusEl.textContent = "PDF downloaded successfully.";
         setTimeout(() => {
           btn.classList.remove("success");
           btn.textContent = "Generate Schedule";
-        }, 3500);
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Error connecting to backend: " + err;
-        btn.textContent = "Generate Schedule";
+        }, 3000);
+      } catch {
+        statusEl.textContent = "Error generating PDF.";
       } finally {
         btn.disabled = false;
       }
@@ -282,3 +291,7 @@
   </script>
 </body>
 </html>
+
+
+
+
