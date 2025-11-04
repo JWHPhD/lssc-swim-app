@@ -1,294 +1,180 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Swimmer Schedule Maker | LSSC</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 2rem auto;
-      padding: 0 1rem 2rem;
-      background: linear-gradient(180deg, #eaf4ff 0%, #cde5fa 100%);
-    }
-    header {
-      text-align: center;
-      background-color: #002855;
-      color: white;
-      padding: 1rem 0 1.5rem;
-      border-radius: 10px;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-    }
-    header img {
-      display: block;
-      margin: 0 auto 0.5rem;
-      width: 160px;
-      height: auto;
-    }
-    header h1 { margin: 0; font-size: 1.8rem; letter-spacing: 1px; }
-    header h2 { margin: 0.25rem 0 0; font-size: 1.2rem; font-weight: normal; color: #d9e3f0; }
-    .card {
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-bottom: 1rem;
-    }
-    label { display: block; margin-top: 1rem; font-weight: bold; }
-    input[type="file"], select {
-      width: 100%;
-      margin-top: 0.25rem;
-    }
-    button {
-      margin-top: 1.5rem;
-      padding: 0.75rem 1.5rem;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-      transition: background 0.3s ease, transform 0.2s ease;
-    }
-    button:hover { background: #0062cc; }
-    button:disabled { background: #999; cursor: not-allowed; }
-    button.success { background: #28a745 !important; transform: scale(1.05); }
-    #status { margin-top: 1rem; font-size: 0.9rem; min-height: 1.2rem; }
-    .preview {
-      background: #fff;
-      padding: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
-    .preview h3 {
-      margin-top: 0;
-      margin-bottom: 0.75rem;
-    }
-    .event {
-      border: 1px solid #e1e1e1;
-      border-radius: 6px;
-      padding: 0.5rem 0.75rem;
-      margin-bottom: 0.5rem;
-      background: #f9fbff;
-    }
-    .event-title {
-      font-weight: bold;
-    }
-    .muted {
-      color: #666;
-      font-size: 0.85rem;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <img src="/static/logo.png" alt="LSSC Logo" />
-    <h1>Lake Shore Swim Club</h1>
-    <h2>Swimmer Schedule Maker</h2>
-  </header>
+<script>
+  const btn = document.getElementById("submitBtn");
+  const statusEl = document.getElementById("status");
+  const fileInput = document.getElementById("file");
+  const swimmerSelect = document.getElementById("swimmerSelect");
+  const previewBox = document.getElementById("previewBox");
+  const previewContent = document.getElementById("previewContent");
 
-  <div class="card">
-    <p>Upload the meet heat sheet PDF. We'll find the swimmers in it, then you can pick your swimmer and preview their events.</p>
+  // when user chooses a PDF, fetch swimmer list
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    if (!file) return;
 
-    <label for="file">Heat sheet (PDF)</label>
-    <input id="file" type="file" accept=".pdf" />
+    statusEl.textContent = "Reading heat sheet and finding swimmers...";
+    swimmerSelect.innerHTML = '<option value="">Loading...</option>';
+    previewBox.style.display = "none";
+    previewContent.innerHTML = "";
 
-    <label for="swimmerSelect">Swimmer</label>
-    <select id="swimmerSelect">
-      <option value="">-- Upload a heat sheet first --</option>
-    </select>
+    const formData = new FormData();
+    formData.append("file", file);
 
-    <button id="submitBtn">Generate Schedule</button>
+    try {
+      const res = await fetch("/list-swimmers", {
+        method: "POST",
+        body: formData
+      });
+      if (!res.ok) {
+        statusEl.textContent = "Could not read swimmers from PDF.";
+        swimmerSelect.innerHTML = '<option value="">-- Error loading swimmers --</option>';
+        return;
+      }
+      const data = await res.json();
+      const swimmers = data.swimmers || [];
 
-    <div id="status"></div>
-  </div>
+      if (swimmers.length === 0) {
+        swimmerSelect.innerHTML = '<option value="">No swimmers found in this PDF</option>';
+        statusEl.textContent = "No swimmer names were recognized.";
+        return;
+      }
 
-  <!-- Preview box -->
-  <div class="preview" id="previewBox" style="display:none;">
-    <h3>Event Preview</h3>
-    <div id="previewContent"></div>
-  </div>
+      swimmerSelect.innerHTML = "";
+      swimmers.forEach(name => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        swimmerSelect.appendChild(opt);
+      });
 
-  <script>
-    const btn = document.getElementById("submitBtn");
-    const statusEl = document.getElementById("status");
-    const fileInput = document.getElementById("file");
-    const swimmerSelect = document.getElementById("swimmerSelect");
-    const previewBox = document.getElementById("previewBox");
-    const previewContent = document.getElementById("previewContent");
+      statusEl.textContent = "Swimmers loaded. Pick one to preview.";
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Error connecting to backend while loading swimmers.";
+      swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
+    }
+  });
 
-    // when user chooses a PDF, fetch swimmer list
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-
-      statusEl.textContent = "Reading heat sheet and finding swimmers...";
-      swimmerSelect.innerHTML = '<option value="">Loading...</option>';
+  // when user picks a swimmer, preview their events
+  swimmerSelect.addEventListener("change", async () => {
+    const file = fileInput.files[0];
+    const swimmerName = swimmerSelect.value;
+    if (!file || !swimmerName) {
       previewBox.style.display = "none";
       previewContent.innerHTML = "";
+      return;
+    }
 
-      const formData = new FormData();
-      formData.append("file", file);
+    statusEl.textContent = "Loading events for " + swimmerName + "...";
 
-      try {
-        const res = await fetch("http://127.0.0.1:8000/list-swimmers", {
-          method: "POST",
-          body: formData
-        });
-        if (!res.ok) {
-          statusEl.textContent = "Could not read swimmers from PDF.";
-          swimmerSelect.innerHTML = '<option value="">-- Error loading swimmers --</option>';
-          return;
-        }
-        const data = await res.json();
-        const swimmers = data.swimmers || [];
+    const formData = new FormData();
+    formData.append("swimmer_name", swimmerName);
+    formData.append("file", file);
 
-        if (swimmers.length === 0) {
-          swimmerSelect.innerHTML = '<option value="">No swimmers found in this PDF</option>';
-          statusEl.textContent = "No swimmer names were recognized.";
-          return;
-        }
-
-        swimmerSelect.innerHTML = "";
-        swimmers.forEach(name => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          swimmerSelect.appendChild(opt);
-        });
-
-        statusEl.textContent = "Swimmers loaded. Pick one to preview.";
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Error connecting to backend while loading swimmers.";
-        swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
-      }
-    });
-
-    // when user picks a swimmer, preview their events
-    swimmerSelect.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      const swimmerName = swimmerSelect.value;
-      if (!file || !swimmerName) {
+    try {
+      const res = await fetch("/extract", {
+        method: "POST",
+        body: formData
+      });
+      if (!res.ok) {
+        statusEl.textContent = "Couldn't load events for this swimmer.";
         previewBox.style.display = "none";
-        previewContent.innerHTML = "";
         return;
       }
+      const data = await res.json();
+      const events = data.events || [];
 
-      statusEl.textContent = "Loading events for " + swimmerName + "...";
-
-      const formData = new FormData();
-      formData.append("swimmer_name", swimmerName);
-      formData.append("file", file);
-
-      try {
-        const res = await fetch("http://127.0.0.1:8000/extract", {
-          method: "POST",
-          body: formData
-        });
-        if (!res.ok) {
-          statusEl.textContent = "Couldn't load events for this swimmer.";
-          previewBox.style.display = "none";
-          return;
-        }
-        const data = await res.json();
-        const events = data.events || [];
-
-        if (events.length === 0) {
-          previewBox.style.display = "block";
-          previewContent.innerHTML = '<p class="muted">No events found for this swimmer in the uploaded PDF.</p>';
-          statusEl.textContent = "No events found.";
-          return;
-        }
-
-        // show preview
+      if (events.length === 0) {
         previewBox.style.display = "block";
-        previewContent.innerHTML = "";
-        events.forEach(ev => {
-          const div = document.createElement("div");
-          div.className = "event";
-          div.innerHTML = `
-            <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
-            <div>Heat: <b>${ev.heat}</b> | Lane: <b>${ev.lane ?? ""}</b> | Seed: <b>${ev.seed_time ?? ""}</b></div>
-          `;
-          previewContent.appendChild(div);
-        });
-
-        statusEl.textContent = "Preview loaded. Click Generate Schedule to download.";
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Error loading swimmer events.";
-        previewBox.style.display = "none";
-      }
-    });
-
-    // Generate PDF for selected swimmer
-    btn.addEventListener("click", async () => {
-      const file = fileInput.files[0];
-      const swimmerName = swimmerSelect.value;
-
-      if (!file) {
-        statusEl.textContent = "Please choose a PDF heat sheet.";
-        return;
-      }
-      if (!swimmerName) {
-        statusEl.textContent = "Please pick a swimmer from the dropdown.";
+        previewContent.innerHTML = '<p class="muted">No events found for this swimmer in the uploaded PDF.</p>';
+        statusEl.textContent = "No events found.";
         return;
       }
 
-      btn.disabled = true;
-      btn.classList.remove("success");
-      btn.textContent = "Generating...";
-      statusEl.textContent = "Generating PDF for " + swimmerName + "...";
+      // show preview
+      previewBox.style.display = "block";
+      previewContent.innerHTML = "";
+      events.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "event";
+        div.innerHTML = `
+          <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
+          <div>Heat: <b>${ev.heat}</b> | Lane: <b>${ev.lane ?? ""}</b> | Seed: <b>${ev.seed_time ?? ""}</b></div>
+        `;
+        previewContent.appendChild(div);
+      });
 
-      const formData = new FormData();
-      formData.append("swimmer_name", swimmerName);
-      formData.append("file", file);
+      statusEl.textContent = "Preview loaded. Click Generate Schedule to download.";
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Error loading swimmer events.";
+      previewBox.style.display = "none";
+    }
+  });
 
-      try {
-        const response = await fetch("http://127.0.0.1:8000/generate-pdf", {
-          method: "POST",
-          body: formData
-        });
+  // Generate PDF for selected swimmer
+  btn.addEventListener("click", async () => {
+    const file = fileInput.files[0];
+    const swimmerName = swimmerSelect.value;
 
-        if (!response.ok) {
-          const text = await response.text();
-          statusEl.textContent = "Server error: " + response.status + " – " + text;
-          btn.disabled = false;
-          btn.textContent = "Generate Schedule";
-          return;
-        }
+    if (!file) {
+      statusEl.textContent = "Please choose a PDF heat sheet.";
+      return;
+    }
+    if (!swimmerName) {
+      statusEl.textContent = "Please pick a swimmer from the dropdown.";
+      return;
+    }
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+    btn.disabled = true;
+    btn.classList.remove("success");
+    btn.textContent = "Generating...";
+    statusEl.textContent = "Generating PDF for " + swimmerName + "...";
 
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
+    const formData = new FormData();
+    formData.append("swimmer_name", swimmerName);
+    formData.append("file", file);
 
-        btn.classList.add("success");
-        btn.textContent = "Schedule Ready ✓";
-        statusEl.textContent = "Success! PDF downloaded for " + swimmerName + ".";
+    try {
+      const response = await fetch("/generate-pdf", {
+        method: "POST",
+        body: formData
+      });
 
-        setTimeout(() => {
-          btn.classList.remove("success");
-          btn.textContent = "Generate Schedule";
-        }, 3500);
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = "Error connecting to backend: " + err;
-        btn.textContent = "Generate Schedule";
-      } finally {
+      if (!response.ok) {
+        const text = await response.text();
+        statusEl.textContent = "Server error: " + response.status + " – " + text;
         btn.disabled = false;
+        btn.textContent = "Generate Schedule";
+        return;
       }
-    });
-  </script>
-</body>
-</html>
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      btn.classList.add("success");
+      btn.textContent = "Schedule Ready ✓";
+      statusEl.textContent = "Success! PDF downloaded for " + swimmerName + ".";
+
+      setTimeout(() => {
+        btn.classList.remove("success");
+        btn.textContent = "Generate Schedule";
+      }, 3500);
+    } catch (err) {
+      console.error(err);
+      statusEl.textContent = "Error connecting to backend: " + err;
+      btn.textContent = "Generate Schedule";
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+
 
 
