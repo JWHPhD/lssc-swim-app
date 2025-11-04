@@ -10,7 +10,7 @@ import tempfile
 import os
 from datetime import datetime
 
-# reportlab for PDF generation
+# PDF generation
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import ParagraphStyle
@@ -18,16 +18,15 @@ from reportlab.lib import colors
 
 app = FastAPI()
 
-# ----------------- SECURITY SETTINGS -----------------
-# allow your render site + local dev
+# --------------- SECURITY / CONFIG ---------------
 ALLOWED_ORIGINS = [
-    "https://lssc-swim-app.onrender.com",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
+    "https://lssc-swim-app.onrender.com",  # your live site
+    "http://localhost:8000",               # local dev
+    "http://127.0.0.1:8000",               # local dev
 ]
 
-# max file size: 10 MB
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10,485,760 bytes
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+PARENT_PIN = "lssc2025"  # <-- change this whenever you want to rotate access
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------- STATIC SETUP -----------------
+# --------------- STATIC FILES ---------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
@@ -53,7 +52,18 @@ def read_root():
         return HTMLResponse(f.read())
 
 
-# ----------------- ENDPOINTS ----------------- #
+# --------------- NEW: AUTH ENDPOINT ---------------
+@app.post("/auth")
+def auth(pin: str = Form(...)):
+    """
+    Simple gate: frontend sends a PIN, we check it.
+    """
+    if pin == PARENT_PIN:
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="Invalid PIN")
+
+
+# --------------- MAIN API ENDPOINTS ---------------
 
 @app.post("/list-swimmers")
 async def list_swimmers(file: UploadFile = File(...)):
@@ -184,19 +194,14 @@ async def generate_swimmer_pdf(
     )
 
 
-# ----------------- HELPERS ----------------- #
+# --------------- HELPERS ---------------
 
 async def secure_read_upload(file: UploadFile) -> bytes:
     """
-    Read the uploaded file safely:
-    - enforce size limit
-    - enforce PDF-only
+    Read upload safely:
+    - enforce size
+    - we’ll still check in extract_text that it's PDF
     """
-    # enforce content type first
-    if file.content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
-      # some browsers send octet-stream, so we won't be too strict, but we’ll still check below
-      pass
-
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail="File too large. Max 10 MB.")
@@ -205,33 +210,30 @@ async def secure_read_upload(file: UploadFile) -> bytes:
 
 def extract_text_from_upload(content_type: str, content_bytes: bytes) -> str:
     """
-    Turn uploaded bytes into text. PDF-only for now.
+    Turn uploaded bytes into text. PDF-only for this app.
     """
-    # we only support PDF for this app
     if content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
-        # try anyway, but fail nicely
+        # some browsers send octet-stream, but we only support PDFs here
         raise HTTPException(status_code=400, detail="Only PDF heat sheets are supported.")
 
     try:
         pdf_stream = BytesIO(content_bytes)
         reader = PdfReader(pdf_stream)
-        text_chunks = []
+        pages_text = []
         for page in reader.pages:
-            text_chunks.append(page.extract_text() or "")
-        return "\n".join(text_chunks)
+            pages_text.append(page.extract_text() or "")
+        return "\n".join(pages_text)
     except Exception:
-        # bad/malformed PDF
         raise HTTPException(status_code=400, detail="Could not read PDF. Please upload a standard PDF heat sheet.")
 
 
 def preprocess_text(text: str) -> str:
     """
-    Make PDF text easier to parse.
-
+    Normalize text so events and heats are easier to detect.
     Handles:
-    - "Heat 6 of 10 (#7 ...)"  -> "#7 ...\nHeat 6 of 10"
-    - "Heat 6 (#7 ...)"        -> "#7 ...\nHeat 6"
-    - and then makes sure "#5 ..." and "Heat 3 ..." are on their own lines
+    - "Heat 6 of 10 (#7 ...)" -> "#7 ...\nHeat 6 of 10"
+    - "Heat 6 (#7 ...)"       -> "#7 ...\nHeat 6"
+    - Then put "#N ..." and "Heat N" on their own lines.
     """
     # 1) Heat X of Y (#N Event...)
     text = re.sub(
@@ -284,7 +286,7 @@ def parse_heat_sheet(text: str):
             current_event_number = int(m_ev.group(1))
             current_event_name = m_ev.group(2).strip().rstrip(")")
             current_heat = None
-            # do NOT clear current_total_heats here — some sheets list heats in sequence
+            # we do NOT clear current_total_heats here
             continue
 
         # heat line: "Heat X of Y"
@@ -336,6 +338,7 @@ def extract_seed_time(line: str):
 
 
 def extract_name(line: str):
+    # matches "Hammond, Dillon", "Riley, Violet", etc.
     m = re.search(r"([A-Za-z'\-]+,\s+[A-Za-z'\-]+(?:\s+[A-Za-z.]+)?)", line)
     if m:
         return m.group(1).strip()
@@ -344,11 +347,11 @@ def extract_name(line: str):
 
 def filter_for_swimmer(events: List[dict], swimmer_name: str):
     target = swimmer_name.lower().strip()
-    matched = []
-    for ev in events:
-        if ev["swimmer_name"] and target in ev["swimmer_name"].lower():
-            matched.append(ev)
-    return matched
+    return [
+        ev
+        for ev in events
+        if ev.get("swimmer_name") and target in ev["swimmer_name"].lower()
+    ]
 
 
 def get_unique_swimmers(events: List[dict]) -> List[str]:
@@ -357,6 +360,7 @@ def get_unique_swimmers(events: List[dict]) -> List[str]:
         if ev.get("swimmer_name"):
             names.add(ev["swimmer_name"])
     return sorted(names, key=lambda x: x.lower())
+
 
 
 
