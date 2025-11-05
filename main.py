@@ -9,6 +9,7 @@ from io import BytesIO
 import tempfile
 import os
 from datetime import datetime
+import json
 
 # PDF generation
 from reportlab.lib.pagesizes import landscape, letter
@@ -20,13 +21,13 @@ app = FastAPI()
 
 # --------------- SECURITY / CONFIG ---------------
 ALLOWED_ORIGINS = [
-    "https://lssc-swim-app.onrender.com",  # your live site
-    "http://localhost:8000",               # local dev
-    "http://127.0.0.1:8000",               # local dev
+    "https://lssc-swim-app.onrender.com",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
-PARENT_PIN = "lssc2025"  # <-- change this whenever you want to rotate access
+PARENT_PIN = "lssc2025"
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,12 +53,9 @@ def read_root():
         return HTMLResponse(f.read())
 
 
-# --------------- NEW: AUTH ENDPOINT ---------------
+# --------------- AUTH (PIN) ---------------
 @app.post("/auth")
 def auth(pin: str = Form(...)):
-    """
-    Simple gate: frontend sends a PIN, we check it.
-    """
     if pin == PARENT_PIN:
         return {"ok": True}
     raise HTTPException(status_code=401, detail="Invalid PIN")
@@ -102,7 +100,255 @@ async def generate_swimmer_pdf(
     events = sorted(events, key=lambda e: e["event_number"])
     matched = filter_for_swimmer(events, swimmer_name)
 
-    # create temp pdf
+    tmp_path = build_schedule_pdf(swimmer_name, matched)
+    return FileResponse(
+        tmp_path,
+        media_type="application/pdf",
+        filename=f"{swimmer_name.replace(' ', '_')}_schedule.pdf",
+    )
+
+
+# --------------- NEW: RESULTS PDF ENDPOINT ---------------
+@app.post("/generate-results-pdf")
+async def generate_results_pdf(
+    swimmer_name: str = Form(...),
+    results_json: str = Form(...)
+):
+    """
+    results_json should be a JSON array of:
+    [
+      {
+        "event_number": 4,
+        "event_name": "Mixed 12 & Under 50 Yard Backstroke",
+        "heat": 7,
+        "total_heats": 10,
+        "lane": 7,
+        "seed_time": "47.64",
+        "final_time": "46.80"
+      },
+      ...
+    ]
+    """
+    try:
+        results = json.loads(results_json)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad results data")
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    tmp_path = tmp.name
+    tmp.close()
+
+    doc = SimpleDocTemplate(
+        tmp_path,
+        pagesize=landscape(letter),
+        leftMargin=30,
+        rightMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+    elements = []
+
+    title_style = ParagraphStyle("title", fontSize=16, spaceAfter=6, leading=18)
+    sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
+
+    elements.append(Paragraph(f"SwimDay Simplified – Results for {swimmer_name}", title_style))
+    elements.append(Paragraph("Lakeshore Swim Club", sub_style))
+    elements.append(
+        Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}", sub_style)
+    )
+    elements.append(Spacer(1, 12))
+
+    data = [["Event", "Heat", "Lane", "Seed", "Final", "Δ (Final - Seed)"]]
+
+    for ev in results:
+        seed = ev.get("seed_time") or ""
+        final = ev.get("final_time") or ""
+        delta = ""
+        if seed and final:
+            delta_seconds = time_to_seconds(final) - time_to_seconds(seed)
+            delta = f"{delta_seconds:+.2f}s"
+        heat_display = ""
+        if ev.get("total_heats"):
+            heat_display = f"{ev.get('heat')} of {ev.get('total_heats')}"
+        else:
+            heat_display = str(ev.get("heat") or "")
+        data.append(
+            [
+                f"#{ev.get('event_number')} – {ev.get('event_name','')}",
+                heat_display,
+                ev.get("lane") or "",
+                seed,
+                final,
+                delta,
+            ]
+        )
+
+    table = Table(
+        data,
+        colWidths=[240, 70, 50, 60, 70, 90],
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#007bff")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    elements.append(table)
+    doc.build(elements)
+
+    return FileResponse(
+        tmp_path,
+        media_type="application/pdf",
+        filename=f"{swimmer_name.replace(' ', '_')}_results.pdf",
+    )
+
+
+# --------------- HELPERS ---------------
+
+async def secure_read_upload(file: UploadFile) -> bytes:
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Max 10 MB.")
+    return content
+
+
+def extract_text_from_upload(content_type: str, content_bytes: bytes) -> str:
+    if content_bytes is None:
+        raise HTTPException(status_code=400, detail="Empty file.")
+    if content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
+        raise HTTPException(status_code=400, detail="Only PDF heat sheets are supported.")
+    try:
+        pdf_stream = BytesIO(content_bytes)
+        reader = PdfReader(pdf_stream)
+        pages_text = []
+        for page in reader.pages:
+            pages_text.append(page.extract_text() or "")
+        return "\n".join(pages_text)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read PDF. Please upload a standard PDF heat sheet.")
+
+
+def preprocess_text(text: str) -> str:
+    text = re.sub(
+        r"Heat\s+(\d+)\s+of\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
+        r"#\3 \4\nHeat \1 of \2",
+        text,
+    )
+    text = re.sub(
+        r"Heat\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
+        r"#\2 \3\nHeat \1",
+        text,
+    )
+    text = re.sub(r"(?<!\n)(#\d+\s+)", r"\n\1", text)
+    text = re.sub(r"(?<!\n)(Heat\s+\d+)", r"\n\1", text)
+    return text
+
+
+def parse_heat_sheet(text: str):
+    text = preprocess_text(text)
+    lines = text.splitlines()
+    events: List[dict] = []
+
+    current_event_number = None
+    current_event_name = None
+    current_heat = None
+    current_total_heats = None
+
+    event_header_re = re.compile(r"^#(\d+)\s+(.*)")
+    heat_of_re = re.compile(r"^Heat\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
+    heat_only_re = re.compile(r"^Heat\s+(\d+)\b", re.IGNORECASE)
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        m_ev = event_header_re.match(line)
+        if m_ev:
+            current_event_number = int(m_ev.group(1))
+            current_event_name = m_ev.group(2).strip().rstrip(")")
+            current_heat = None
+            continue
+
+        m_heat = heat_of_re.match(line)
+        if m_heat:
+            current_heat = int(m_heat.group(1))
+            current_total_heats = int(m_heat.group(2))
+            continue
+
+        m_heat2 = heat_only_re.match(line)
+        if m_heat2:
+            current_heat = int(m_heat2.group(1))
+            continue
+
+        if current_event_number is not None and current_heat is not None:
+            name = extract_name(line)
+            if name:
+                events.append(
+                    {
+                        "event_number": current_event_number,
+                        "event_name": current_event_name,
+                        "heat": current_heat,
+                        "total_heats": current_total_heats,
+                        "lane": extract_lane(line),
+                        "seed_time": extract_seed_time(line),
+                        "raw_line": line,
+                        "swimmer_name": name,
+                    }
+                )
+
+    return events
+
+
+def extract_lane(line: str):
+    m = re.search(r"(\d+)\s*$", line)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def extract_seed_time(line: str):
+    m = re.search(r"(\d+:\d+\.\d+|\d+\.\d+)", line)
+    if m:
+        return m.group(1)
+    return None
+
+
+def extract_name(line: str):
+    m = re.search(r"([A-Za-z'\-]+,\s+[A-Za-z'\-]+(?:\s+[A-Za-z.]+)?)", line)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def filter_for_swimmer(events: List[dict], swimmer_name: str):
+    target = swimmer_name.lower().strip()
+    return [
+        ev for ev in events
+        if ev.get("swimmer_name") and target in ev["swimmer_name"].lower()
+    ]
+
+
+def get_unique_swimmers(events: List[dict]) -> List[str]:
+    names = set()
+    for ev in events:
+        if ev.get("swimmer_name"):
+            names.add(ev["swimmer_name"])
+    return sorted(names, key=lambda x: x.lower())
+
+
+def build_schedule_pdf(swimmer_name: str, matched: List[dict]) -> str:
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     tmp_path = tmp.name
     tmp.close()
@@ -121,7 +367,7 @@ async def generate_swimmer_pdf(
     sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
     notes_label_style = ParagraphStyle("label", fontSize=9, spaceAfter=2)
 
-    elements.append(Paragraph(f"Swim Schedule – {swimmer_name}", title_style))
+    elements.append(Paragraph(f"SwimDay Simplified – {swimmer_name}", title_style))
     elements.append(Paragraph("Lakeshore Swim Club", sub_style))
     elements.append(
         Paragraph(
@@ -131,7 +377,6 @@ async def generate_swimmer_pdf(
     )
     elements.append(Spacer(1, 12))
 
-    # table data
     data = [["Event", "Heat", "Lane", "Seed", "Results"]]
     if matched:
         for ev in matched:
@@ -186,180 +431,19 @@ async def generate_swimmer_pdf(
         )
 
     doc.build(elements)
-
-    return FileResponse(
-        tmp_path,
-        media_type="application/pdf",
-        filename=f"{swimmer_name.replace(' ', '_')}_schedule.pdf",
-    )
+    return tmp_path
 
 
-# --------------- HELPERS ---------------
-
-async def secure_read_upload(file: UploadFile) -> bytes:
+def time_to_seconds(t: str) -> float:
     """
-    Read upload safely:
-    - enforce size
-    - we’ll still check in extract_text that it's PDF
+    Convert time strings like "1:05.32" or "47.64" to seconds.
     """
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Max 10 MB.")
-    return content
+    t = t.strip()
+    if ":" in t:
+        mins, rest = t.split(":", 1)
+        return int(mins) * 60 + float(rest)
+    return float(t)
 
-
-def extract_text_from_upload(content_type: str, content_bytes: bytes) -> str:
-    """
-    Turn uploaded bytes into text. PDF-only for this app.
-    """
-    if content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
-        # some browsers send octet-stream, but we only support PDFs here
-        raise HTTPException(status_code=400, detail="Only PDF heat sheets are supported.")
-
-    try:
-        pdf_stream = BytesIO(content_bytes)
-        reader = PdfReader(pdf_stream)
-        pages_text = []
-        for page in reader.pages:
-            pages_text.append(page.extract_text() or "")
-        return "\n".join(pages_text)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not read PDF. Please upload a standard PDF heat sheet.")
-
-
-def preprocess_text(text: str) -> str:
-    """
-    Normalize text so events and heats are easier to detect.
-    Handles:
-    - "Heat 6 of 10 (#7 ...)" -> "#7 ...\nHeat 6 of 10"
-    - "Heat 6 (#7 ...)"       -> "#7 ...\nHeat 6"
-    - Then put "#N ..." and "Heat N" on their own lines.
-    """
-    # 1) Heat X of Y (#N Event...)
-    text = re.sub(
-        r"Heat\s+(\d+)\s+of\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
-        r"#\3 \4\nHeat \1 of \2",
-        text,
-    )
-
-    # 2) Heat X (#N Event...)
-    text = re.sub(
-        r"Heat\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
-        r"#\2 \3\nHeat \1",
-        text,
-    )
-
-    # 3) force "#N ..." to its own line
-    text = re.sub(r"(?<!\n)(#\d+\s+)", r"\n\1", text)
-
-    # 4) force "Heat N" to its own line
-    text = re.sub(r"(?<!\n)(Heat\s+\d+)", r"\n\1", text)
-
-    return text
-
-
-def parse_heat_sheet(text: str):
-    """
-    Parse the meet program into a list of swimmer entries.
-    """
-    text = preprocess_text(text)
-    lines = text.splitlines()
-    events: List[dict] = []
-
-    current_event_number = None
-    current_event_name = None
-    current_heat = None
-    current_total_heats = None
-
-    event_header_re = re.compile(r"^#(\d+)\s+(.*)")
-    heat_of_re = re.compile(r"^Heat\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
-    heat_only_re = re.compile(r"^Heat\s+(\d+)\b", re.IGNORECASE)
-
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-
-        # event line
-        m_ev = event_header_re.match(line)
-        if m_ev:
-            current_event_number = int(m_ev.group(1))
-            current_event_name = m_ev.group(2).strip().rstrip(")")
-            current_heat = None
-            # we do NOT clear current_total_heats here
-            continue
-
-        # heat line: "Heat X of Y"
-        m_heat = heat_of_re.match(line)
-        if m_heat:
-            current_heat = int(m_heat.group(1))
-            current_total_heats = int(m_heat.group(2))
-            continue
-
-        # heat line: "Heat X"
-        m_heat2 = heat_only_re.match(line)
-        if m_heat2:
-            current_heat = int(m_heat2.group(1))
-            # keep last known total_heats
-            continue
-
-        # swimmer line
-        if current_event_number is not None and current_heat is not None:
-            name = extract_name(line)
-            if name:
-                events.append(
-                    {
-                        "event_number": current_event_number,
-                        "event_name": current_event_name,
-                        "heat": current_heat,
-                        "total_heats": current_total_heats,
-                        "lane": extract_lane(line),
-                        "seed_time": extract_seed_time(line),
-                        "raw_line": line,
-                        "swimmer_name": name,
-                    }
-                )
-
-    return events
-
-
-def extract_lane(line: str):
-    m = re.search(r"(\d+)\s*$", line)
-    if m:
-        return int(m.group(1))
-    return None
-
-
-def extract_seed_time(line: str):
-    m = re.search(r"(\d+:\d+\.\d+|\d+\.\d+)", line)
-    if m:
-        return m.group(1)
-    return None
-
-
-def extract_name(line: str):
-    # matches "Hammond, Dillon", "Riley, Violet", etc.
-    m = re.search(r"([A-Za-z'\-]+,\s+[A-Za-z'\-]+(?:\s+[A-Za-z.]+)?)", line)
-    if m:
-        return m.group(1).strip()
-    return None
-
-
-def filter_for_swimmer(events: List[dict], swimmer_name: str):
-    target = swimmer_name.lower().strip()
-    return [
-        ev
-        for ev in events
-        if ev.get("swimmer_name") and target in ev["swimmer_name"].lower()
-    ]
-
-
-def get_unique_swimmers(events: List[dict]) -> List[str]:
-    names = set()
-    for ev in events:
-        if ev.get("swimmer_name"):
-            names.add(ev["swimmer_name"])
-    return sorted(names, key=lambda x: x.lower())
 
 
 

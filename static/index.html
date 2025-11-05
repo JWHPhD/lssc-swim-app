@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Swimmer Schedule Maker | Lakeshore Swim Club</title>
+  <title>SwimDay Simplified | Lakeshore Swim Club</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
@@ -59,13 +59,13 @@
     button.success { background: #28a745 !important; transform: scale(1.05); }
     #status { margin-top: 1rem; font-size: 0.9rem; min-height: 1.2rem; }
 
-    .preview {
+    .preview, .results {
       background: #fff;
       padding: 1rem;
       border-radius: 8px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     }
-    .preview h3 { margin-top: 0; margin-bottom: 0.75rem; }
+    .preview h3, .results h3 { margin-top: 0; margin-bottom: 0.75rem; }
     .event {
       border: 1px solid #e1e1e1;
       border-radius: 6px;
@@ -130,13 +130,18 @@
       margin-top: 0.5rem;
       display: none;
     }
+    table.results-table th,
+    table.results-table td {
+      border: 1px solid #d0d0d0;
+      padding: 4px;
+    }
   </style>
 </head>
 <body>
   <header>
     <img src="/static/logo.png" alt="Lakeshore Swim Club Logo" />
     <h1>Lakeshore Swim Club</h1>
-    <h2>Swimmer Schedule Maker</h2>
+    <h2>SwimDay Simplified</h2>
   </header>
 
   <!-- PIN CARD -->
@@ -151,7 +156,7 @@
   <!-- REAL APP CONTENT -->
   <div id="app-content">
     <div class="card">
-      <p>Upload the meet heat sheet PDF. We'll find the swimmers in it, then you can pick your swimmer and preview their events.</p>
+      <p>Upload the meet heat sheet PDF and we’ll create a swimmer-only view of events — easy, fast, SwimDay Simplified.</p>
 
       <label for="file">Heat sheet (PDF)</label>
       <input id="file" type="file" accept=".pdf" />
@@ -169,6 +174,13 @@
     <div class="preview" id="previewBox" style="display:none;">
       <h3>Event Preview</h3>
       <div id="previewContent"></div>
+    </div>
+
+    <!-- NEW: Results vs Seed section -->
+    <div class="preview" id="resultsBox" style="display:none; margin-top:1rem;">
+      <h3>Results vs Seed</h3>
+      <div id="resultsContent"></div>
+      <button id="downloadResultsBtn" style="margin-top:0.7rem;">Download Results PDF</button>
     </div>
   </div>
 
@@ -203,7 +215,7 @@
     const pinBtn = document.getElementById("pin-btn");
     const pinError = document.getElementById("pin-error");
 
-    // if already verified in this browser, skip PIN
+    // if already verified, show app
     if (localStorage.getItem("lssc-pin-ok") === "yes") {
       pinCard.style.display = "none";
       appContent.style.display = "block";
@@ -220,7 +232,6 @@
           body: formData
         });
         if (!res.ok) throw new Error("bad pin");
-        // success
         localStorage.setItem("lssc-pin-ok", "yes");
         pinCard.style.display = "none";
         appContent.style.display = "block";
@@ -230,21 +241,52 @@
       }
     });
 
-    // ---------------- existing JS below ----------------
     const btn = document.getElementById("submitBtn");
     const statusEl = document.getElementById("status");
     const fileInput = document.getElementById("file");
     const swimmerSelect = document.getElementById("swimmerSelect");
     const previewBox = document.getElementById("previewBox");
     const previewContent = document.getElementById("previewContent");
+    const resultsBox = document.getElementById("resultsBox");
+    const resultsContent = document.getElementById("resultsContent");
+    const downloadResultsBtn = document.getElementById("downloadResultsBtn");
 
+    // we'll store current swimmer + events
+    let currentEvents = [];
+    let currentSwimmerName = "";
+
+    function storageKeyFor(swimmer) {
+      return "lssc-results-" + swimmer.toLowerCase().replace(/\s+/g, "_");
+    }
+
+    function loadResultsFromStorage(swimmer) {
+      if (!swimmer) return {};
+      const key = storageKeyFor(swimmer);
+      const raw = localStorage.getItem(key);
+      if (!raw) return {};
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return {};
+      }
+    }
+
+    function saveResultsToStorage(swimmer, obj) {
+      if (!swimmer) return;
+      const key = storageKeyFor(swimmer);
+      localStorage.setItem(key, JSON.stringify(obj));
+    }
+
+    // load swimmers from PDF
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
       if (!file) return;
       statusEl.textContent = "Reading heat sheet and finding swimmers...";
       swimmerSelect.innerHTML = '<option value="">Loading...</option>';
       previewBox.style.display = "none";
+      resultsBox.style.display = "none";
       previewContent.innerHTML = "";
+      resultsContent.innerHTML = "";
       const formData = new FormData();
       formData.append("file", file);
       try {
@@ -266,10 +308,12 @@
       }
     });
 
+    // load events for selected swimmer
     swimmerSelect.addEventListener("change", async () => {
       const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
       if (!file || !swimmerName) return;
+      currentSwimmerName = swimmerName;
       statusEl.textContent = "Loading events for " + swimmerName + "...";
       const formData = new FormData();
       formData.append("swimmer_name", swimmerName);
@@ -279,32 +323,161 @@
         if (!res.ok) throw new Error("Error loading events");
         const data = await res.json();
         const events = data.events || [];
+        currentEvents = events;
         previewBox.style.display = "block";
         previewContent.innerHTML = "";
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
+
+        // load saved times for this swimmer
+        const saved = loadResultsFromStorage(swimmerName);
+
         if (events.length === 0) {
           previewContent.innerHTML = '<p class="muted">No events found for this swimmer.</p>';
           statusEl.textContent = "No events found.";
           return;
         }
+
         events.forEach(ev => {
           const totalHeats = ev.total_heats ? ev.total_heats : "?";
+          const evId = `event-${ev.event_number}-${ev.heat}`;
+          const savedTime = saved[evId] || "";
           const div = document.createElement("div");
           div.className = "event";
           div.innerHTML = `
             <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
             <div>
-              Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> | 
-              Lane: <b>${ev.lane ?? ""}</b> | 
+              Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> |
+              Lane: <b>${ev.lane ?? ""}</b> |
               Seed: <b>${ev.seed_time ?? ""}</b>
-            </div>`;
+            </div>
+            <div style="margin-top:0.4rem;">
+              Final time (enter after race):
+              <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" />
+            </div>
+          `;
           previewContent.appendChild(div);
         });
-        statusEl.textContent = "Preview ready. Click Generate Schedule to download.";
+
+        statusEl.textContent = "Preview ready. Enter times after each event.";
+        // show results if any saved
+        renderResultsTable();
       } catch (err) {
         statusEl.textContent = "Error loading swimmer events.";
       }
     });
 
+    // save entered times and update results
+    previewContent.addEventListener("input", (e) => {
+      if (e.target && e.target.matches("input[data-event-id]")) {
+        const evId = e.target.getAttribute("data-event-id");
+        const val = e.target.value.trim();
+        const saved = loadResultsFromStorage(currentSwimmerName);
+        saved[evId] = val;
+        saveResultsToStorage(currentSwimmerName, saved);
+        renderResultsTable();
+      }
+    });
+
+    function timeToSeconds(t) {
+      if (!t) return null;
+      t = t.trim();
+      if (t.includes(":")) {
+        const parts = t.split(":");
+        if (parts.length === 2) {
+          const mins = parseInt(parts[0], 10);
+          const secs = parseFloat(parts[1]);
+          return mins * 60 + secs;
+        }
+      }
+      const num = parseFloat(t);
+      if (isNaN(num)) return null;
+      return num;
+    }
+
+    function renderResultsTable() {
+      if (!currentSwimmerName || currentEvents.length === 0) return;
+      const saved = loadResultsFromStorage(currentSwimmerName);
+      let hasAny = false;
+      let html = `<table class="results-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+        <tr style="background:#eaf0ff;">
+          <th style="text-align:left;">Event</th>
+          <th>Seed</th>
+          <th>Final</th>
+          <th>Diff</th>
+        </tr>
+      `;
+      currentEvents.forEach(ev => {
+        const evId = `event-${ev.event_number}-${ev.heat}`;
+        const finalTime = saved[evId] || "";
+        const seedTime = ev.seed_time || "";
+        if (finalTime) hasAny = true;
+        let diffText = "";
+        if (seedTime && finalTime) {
+          const s = timeToSeconds(seedTime);
+          const f = timeToSeconds(finalTime);
+          if (s !== null && f !== null) {
+            const diff = f - s;
+            diffText = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "s";
+          }
+        }
+        html += `
+          <tr>
+            <td>#${ev.event_number} – ${ev.event_name}</td>
+            <td style="text-align:center;">${seedTime}</td>
+            <td style="text-align:center;">${finalTime}</td>
+            <td style="text-align:center;">${diffText}</td>
+          </tr>
+        `;
+      });
+      html += `</table>`;
+
+      if (hasAny) {
+        resultsBox.style.display = "block";
+        resultsContent.innerHTML = html;
+      } else {
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
+      }
+    }
+
+    // download results pdf
+    downloadResultsBtn.addEventListener("click", async () => {
+      if (!currentSwimmerName || currentEvents.length === 0) return;
+      const saved = loadResultsFromStorage(currentSwimmerName);
+      const payload = currentEvents.map(ev => {
+        const evId = `event-${ev.event_number}-${ev.heat}`;
+        return {
+          event_number: ev.event_number,
+          event_name: ev.event_name,
+          heat: ev.heat,
+          total_heats: ev.total_heats || null,
+          lane: ev.lane || null,
+          seed_time: ev.seed_time || "",
+          final_time: saved[evId] || ""
+        };
+      });
+      const formData = new FormData();
+      formData.append("swimmer_name", currentSwimmerName);
+      formData.append("results_json", JSON.stringify(payload));
+      try {
+        const res = await fetch("/generate-results-pdf", {
+          method: "POST",
+          body: formData
+        });
+        if (!res.ok) throw new Error("PDF failed");
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = currentSwimmerName.replace(/\s+/g, "_") + "_results.pdf";
+        a.click();
+      } catch (err) {
+        alert("Could not download results PDF.");
+      }
+    });
+
+    // existing: download schedule pdf
     btn.addEventListener("click", async () => {
       const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
@@ -343,6 +516,8 @@
   </script>
 </body>
 </html>
+
+
 
 
 
