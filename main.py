@@ -121,6 +121,121 @@ async def generate_swimmer_pdf(
         filename=f"{swimmer_name.replace(' ', '_')}_schedule.pdf",
     )
 
+@app.post("/generate-team-pdf")
+async def generate_team_pdf(
+    swimmers_json: str = Form(...),
+    file: UploadFile = File(...)
+):
+    """
+    Build a combined PDF for multiple swimmers from the same heat sheet.
+    swimmers_json = '["Hammond, Dillon", "Smith, Alex"]'
+    """
+    # read and parse the PDF just like other endpoints
+    content_bytes = await secure_read_upload(file)
+    text = extract_text_from_upload(file.content_type, content_bytes)
+    events = parse_heat_sheet(text)
+    events = sorted(events, key=lambda e: e["event_number"])
+
+    try:
+        swimmer_names = json.loads(swimmers_json)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad swimmers list")
+
+    # collect matched events for each swimmer
+    all_rows = []  # list of dicts: swimmer, event, heat, lane, seed
+    for name in swimmer_names:
+        matched = filter_for_swimmer(events, name)
+        for ev in matched:
+            all_rows.append(
+                {
+                    "swimmer": name,
+                    "event_number": ev["event_number"],
+                    "event_name": ev["event_name"],
+                    "heat": ev["heat"],
+                    "total_heats": ev.get("total_heats"),
+                    "lane": ev.get("lane"),
+                    "seed_time": ev.get("seed_time"),
+                }
+            )
+
+    # build PDF
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    tmp_path = tmp.name
+    tmp.close()
+
+    doc = SimpleDocTemplate(
+        tmp_path,
+        pagesize=landscape(letter),
+        leftMargin=30,
+        rightMargin=30,
+        topMargin=30,
+        bottomMargin=30,
+    )
+
+    elements = []
+    title_style = ParagraphStyle("title", fontSize=16, spaceAfter=6, leading=18)
+    sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
+
+    elements.append(Paragraph("SwimDay Simplified – Team Schedule", title_style))
+    elements.append(Paragraph("Lakeshore Swim Club", sub_style))
+    elements.append(Paragraph(
+        f"Swimmers: {', '.join(swimmer_names)}", sub_style
+    ))
+    elements.append(
+        Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}", sub_style)
+    )
+    elements.append(Spacer(1, 12))
+
+    data = [["Swimmer", "Event", "Heat", "Lane", "Seed"]]
+
+    if all_rows:
+        for row in all_rows:
+            evt_text = f"#{row['event_number']} – {row['event_name']}"
+            if row["total_heats"]:
+                heat_display = f"{row['heat']} of {row['total_heats']}"
+            else:
+                heat_display = str(row["heat"])
+            data.append(
+                [
+                    row["swimmer"],
+                    evt_text,
+                    heat_display,
+                    row["lane"] if row["lane"] is not None else "",
+                    row["seed_time"] or "",
+                ]
+            )
+    else:
+        data.append(["No events found for selected swimmers", "", "", "", ""])
+
+    table = Table(
+        data,
+        colWidths=[130, 240, 70, 50, 70],
+    )
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#007bff")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, 0), 10),
+                ("ALIGN", (2, 1), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 4),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
+
+    elements.append(table)
+    doc.build(elements)
+
+    return FileResponse(
+        tmp_path,
+        media_type="application/pdf",
+        filename="team_schedule.pdf",
+    )
 
 # --------------- NEW: RESULTS PDF ENDPOINT ---------------
 @app.post("/generate-results-pdf")

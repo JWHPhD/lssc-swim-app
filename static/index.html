@@ -173,10 +173,37 @@
 
     <!-- PREMIUM FEATURE AREA (hidden until unlocked) -->
     <div id="premium-features" class="card" style="display:none; margin-top:1rem;">
-      <h3>Premium Features</h3>
-      <p>Premium features are unlocked on this device.</p>
-      <!-- For now it's just a placeholder. Later we'll add real Pro stuff here. -->
-    </div>
+  <h3>Premium Features</h3>
+  <p>Premium features are unlocked on this device.</p>
+
+  <label for="pro-multi-swimmers" style="margin-top:0.5rem; display:block;">Select swimmers to combine:</label>
+  <select
+    id="pro-multi-swimmers"
+    multiple
+    size="8"
+    style="width:100%; max-width:420px; min-height:180px; overflow-y:auto;">
+    <!-- filled by JS -->
+  </select>
+
+  <button id="pro-preview-team" style="margin-top:0.7rem;">
+    Preview Combined Events
+  </button>
+
+  <button id="pro-download-team-pdf" style="margin-top:0.7rem; margin-left:0;">
+    Download Team Schedule PDF
+  </button>
+
+  <p class="muted" style="margin-top:0.4rem;">Tip: hold Ctrl (Windows) to pick more than one.</p>
+
+  <!-- Pro combined preview -->
+  <div id="pro-preview-box" style="margin-top:1rem; background:#f4f7ff; padding:0.75rem; border-radius:6px; display:none;">
+    <h4 style="margin-top:0; margin-bottom:0.5rem;">Combined Event Preview</h4>
+    <div id="pro-preview-content" style="max-height:220px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+
+
 
     <!-- PREMIUM UNLOCK CARD -->
     <div id="premium-card" class="card" style="margin-top:1rem;">
@@ -265,7 +292,7 @@
     const premiumFeatures = document.getElementById("premium-features");
 
    // if already unlocked on this browser, show premium area and hide the unlock card
-if (localStorage.getItem("lssc-premium-ok") === "yes") {
+  if (localStorage.getItem("lssc-premium-ok") === "yes") {
   if (premiumFeatures) premiumFeatures.style.display = "block";
   if (premiumCard) premiumCard.style.display = "none";
 }
@@ -307,6 +334,9 @@ if (localStorage.getItem("lssc-premium-ok") === "yes") {
     // we'll store current swimmer + events
     let currentEvents = [];
     let currentSwimmerName = "";
+
+    // store swimmer list for pro features
+    let currentSwimmerList = [];
 
     function storageKeyFor(swimmer) {
       return "lssc-results-" + swimmer.toLowerCase().replace(/\s+/g, "_");
@@ -354,7 +384,24 @@ if (localStorage.getItem("lssc-premium-ok") === "yes") {
           opt.textContent = name;
           swimmerSelect.appendChild(opt);
         });
+
+        // 👇 NEW: save list for pro features
+        currentSwimmerList = swimmers;
+
+        // 👇 NEW: also populate the pro multi-select if it exists
+        const proMulti = document.getElementById("pro-multi-swimmers");
+        if (proMulti) {
+          proMulti.innerHTML = "";
+          currentSwimmerList.forEach(name => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            proMulti.appendChild(opt);
+          });
+        }
+
         statusEl.textContent = "Swimmers loaded. Pick one to preview.";
+
       } catch (err) {
         statusEl.textContent = "Error reading swimmers from PDF.";
         swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
@@ -530,6 +577,153 @@ if (localStorage.getItem("lssc-premium-ok") === "yes") {
       }
     });
 
+        // === PRO (multi-swimmer) ===
+    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
+    const proMulti = document.getElementById("pro-multi-swimmers");
+    const proPreviewBtn = document.getElementById("pro-preview-team");
+    const proPreviewBox = document.getElementById("pro-preview-box");
+    const proPreviewContent = document.getElementById("pro-preview-content");
+
+    // Pro: preview combined events
+    if (proPreviewBtn) {
+      proPreviewBtn.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+          alert("Upload a heat sheet PDF first.");
+          return;
+        }
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter(function (opt) { return opt.selected; })
+          .map(function (opt) { return opt.value; });
+
+        if (selected.length === 0) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        const combined = [];
+
+        // build formdatas for each swimmer
+        const fetches = selected.map(function (name) {
+          const fd = new FormData();
+          fd.append("swimmer_name", name);
+          fd.append("file", file);
+          return { name: name, fd: fd };
+        });
+
+        try {
+          const results = await Promise.all(
+            fetches.map(function (item) {
+              return fetch("/extract", {
+                method: "POST",
+                body: item.fd
+              }).then(function (res) {
+                if (!res.ok) throw new Error("extract failed");
+                return res.json().then(function (data) {
+                  return { name: item.name, events: data.events || [] };
+                });
+              });
+            })
+          );
+
+          // flatten
+          results.forEach(function (swObj) {
+            swObj.events.forEach(function (ev) {
+              combined.push({
+                swimmer: swObj.name,
+                event_number: ev.event_number,
+                event_name: ev.event_name,
+                heat: ev.heat,
+                total_heats: ev.total_heats,
+                lane: ev.lane,
+                seed_time: ev.seed_time
+              });
+            });
+          });
+
+          // sort by event then heat
+          combined.sort(function (a, b) {
+            if (a.event_number !== b.event_number) {
+              return a.event_number - b.event_number;
+            }
+            var ah = a.heat || 0;
+            var bh = b.heat || 0;
+            return ah - bh;
+          });
+
+          // render
+          if (combined.length === 0) {
+            proPreviewContent.innerHTML = '<p class="muted">No events found for selected swimmers.</p>';
+          } else {
+            var html = "";
+            combined.forEach(function (item) {
+              var lane = item.lane ? item.lane : "";
+              var seed = item.seed_time ? item.seed_time : "";
+              var totalHeatsText = item.total_heats ? (" of " + item.total_heats) : "";
+              html +=
+                '<div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">' +
+                  '<div style="font-weight:bold;">' + item.swimmer + '</div>' +
+                  '<div>Event #' + item.event_number + ' – ' + item.event_name + '</div>' +
+                  '<div style="font-size:0.8rem; color:#444;">' +
+                    'Heat: ' + item.heat + totalHeatsText + ' | ' +
+                    'Lane: ' + lane + ' | ' +
+                    'Seed: ' + seed +
+                  '</div>' +
+                '</div>';
+            });
+            proPreviewContent.innerHTML = html;
+          }
+
+          proPreviewBox.style.display = "block";
+        } catch (err) {
+          alert("Could not load combined preview.");
+        }
+      });
+    }
+
+    // Pro: download combined PDF
+    if (proDownloadBtn) {
+      proDownloadBtn.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+        if (!file) {
+          alert("Upload a heat sheet PDF first.");
+          return;
+        }
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter(function (opt) { return opt.selected; })
+          .map(function (opt) { return opt.value; });
+
+        if (selected.length === 0) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("swimmers_json", JSON.stringify(selected));
+
+        try {
+          const res = await fetch("/generate-team-pdf", {
+            method: "POST",
+            body: fd
+          });
+          if (!res.ok) throw new Error("PDF failed");
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "team_schedule.pdf";
+          a.click();
+        } catch (err) {
+          alert("Could not download team PDF.");
+        }
+      });
+    }
+
     // existing: download schedule pdf
     btn.addEventListener("click", async () => {
       const file = fileInput.files[0];
@@ -566,6 +760,7 @@ if (localStorage.getItem("lssc-premium-ok") === "yes") {
         btn.disabled = false;
       }
     });
+
   </script>
 </body>
 </html>
