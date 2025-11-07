@@ -61,6 +61,19 @@ def auth(pin: str = Form(...)):
         return {"ok": True}
     raise HTTPException(status_code=401, detail="Invalid PIN")
 
+# --------------- PREMIUM AUTH ---------------
+PREMIUM_CODE = os.getenv("PREMIUM_CODE", "lssc-pro-2025")
+
+@app.post("/premium-auth")
+def premium_auth(code: str = Form(...)):
+    """
+    Simple premium unlock. Frontend sends a code, we compare.
+    Later you can replace this with Stripe or database checks.
+    """
+    if code == PREMIUM_CODE:
+        return {"ok": True, "plan": "premium"}
+    raise HTTPException(status_code=401, detail="Invalid premium code")
+
 
 # --------------- MAIN API ENDPOINTS ---------------
 

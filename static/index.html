@@ -171,6 +171,22 @@
       <div id="status"></div>
     </div>
 
+    <!-- PREMIUM FEATURE AREA (hidden until unlocked) -->
+    <div id="premium-features" class="card" style="display:none; margin-top:1rem;">
+      <h3>Premium Features</h3>
+      <p>Premium features are unlocked on this device.</p>
+      <!-- For now it's just a placeholder. Later we'll add real Pro stuff here. -->
+    </div>
+
+    <!-- PREMIUM UNLOCK CARD -->
+    <div id="premium-card" class="card" style="margin-top:1rem;">
+      <h3>Have a premium code?</h3>
+      <p>Enter the code to unlock Pro features on this browser.</p>
+      <input id="premium-input" type="text" placeholder="Enter premium code" style="width:100%; max-width:260px;" />
+      <button id="premium-btn" style="margin-top:0.6rem;">Unlock Pro</button>
+      <div id="premium-status" style="font-size:0.8rem; color:#b20000; margin-top:0.4rem; display:none;"></div>
+    </div>
+
     <div class="preview" id="previewBox" style="display:none;">
       <h3>Event Preview</h3>
       <div id="previewContent"></div>
@@ -238,6 +254,43 @@
         pinError.style.display = "none";
       } catch (err) {
         pinError.style.display = "block";
+      }
+    });
+
+        // PREMIUM UNLOCK LOGIC
+    const premiumCard = document.getElementById("premium-card");
+    const premiumInput = document.getElementById("premium-input");
+    const premiumBtn = document.getElementById("premium-btn");
+    const premiumStatus = document.getElementById("premium-status");
+    const premiumFeatures = document.getElementById("premium-features");
+
+   // if already unlocked on this browser, show premium area and hide the unlock card
+if (localStorage.getItem("lssc-premium-ok") === "yes") {
+  if (premiumFeatures) premiumFeatures.style.display = "block";
+  if (premiumCard) premiumCard.style.display = "none";
+}
+
+
+    premiumBtn.addEventListener("click", async () => {
+      const code = premiumInput.value.trim();
+      if (!code) return;
+      const fd = new FormData();
+      fd.append("code", code);
+      try {
+        const res = await fetch("/premium-auth", {
+          method: "POST",
+          body: fd
+        });
+        if (!res.ok) throw new Error("bad code");
+        const data = await res.json();
+        // save locally so user doesn't have to retype
+        localStorage.setItem("lssc-premium-ok", "yes");
+        premiumStatus.style.display = "none";
+        if (premiumFeatures) premiumFeatures.style.display = "block";
+        if (premiumCard) premiumCard.style.display = "none";
+      } catch (err) {
+        premiumStatus.textContent = "Invalid premium code.";
+        premiumStatus.style.display = "block";
       }
     });
 
