@@ -105,6 +105,7 @@
       text-align: center;
       color: #444;
     }
+
     /* app is hidden until PIN is valid */
     #app-content {
       display: none;
@@ -138,16 +139,21 @@
     <div id="pin-error">Incorrect PIN. Please try again.</div>
   </div>
 
-  <!-- MAIN APP (hidden until PIN ok) -->
+  <!-- MAIN APP -->
   <div id="app-content">
 
-    <!-- FREE SECTION -->
-    <div id="free-section" class="card">
-      <h3>Free Version</h3>
-      <p>Upload the meet heat sheet PDF and create a swimmer-only view.</p>
-
+    <!-- ALWAYS SHOW: upload card -->
+    <div id="upload-card" class="card">
+      <h3>Heat Sheet</h3>
+      <p>Upload the meet heat sheet PDF to use free or premium tools.</p>
       <label for="file">Heat sheet (PDF)</label>
       <input id="file" type="file" accept=".pdf" />
+      <div id="status"></div>
+    </div>
+
+    <!-- FREE SECTION (we'll hide this whole card in pro mode) -->
+    <div id="free-section" class="card">
+      <h3>Free Version</h3>
 
       <label for="swimmerSelect">Swimmer</label>
       <select id="swimmerSelect">
@@ -155,8 +161,6 @@
       </select>
 
       <button id="submitBtn">Generate Schedule</button>
-
-      <div id="status"></div>
 
       <div id="previewBox" style="display:none; margin-top:1rem;">
         <h3>Event Preview</h3>
@@ -179,7 +183,7 @@
       <div id="premium-status" style="font-size:0.8rem; color:#b20000; margin-top:0.4rem; display:none;"></div>
     </div>
 
-    <!-- PREMIUM FEATURES (hidden until unlocked) -->
+    <!-- PREMIUM FEATURES -->
     <div id="premium-features" class="card" style="display:none; margin-top:1rem;">
       <h3>Premium Features</h3>
       <p>Premium features are unlocked on this device.</p>
@@ -198,24 +202,18 @@
         <option value="event">Event</option>
       </select>
 
-      <button id="pro-preview-team" style="margin-top:0.7rem;">
-        Preview Combined Events
-      </button>
-
-      <button id="pro-download-team-pdf" style="margin-top:0.7rem; margin-left:0;">
-        Download Team Schedule PDF
-      </button>
+      <button id="pro-preview-team" style="margin-top:0.7rem;">Preview Combined Events</button>
+      <button id="pro-download-team-pdf" style="margin-top:0.7rem; margin-left:0;">Download Team Schedule PDF</button>
 
       <p class="muted" style="margin-top:0.4rem;">Tip: hold Ctrl (Windows) to pick more than one.</p>
 
-      <!-- Pro combined preview -->
       <div id="pro-preview-box" style="margin-top:1rem; background:#f4f7ff; padding:0.75rem; border-radius:6px; display:none;">
         <h4 style="margin-top:0; margin-bottom:0.5rem;">Combined Event Preview</h4>
         <div id="pro-preview-content" style="max-height:220px; overflow-y:auto;"></div>
       </div>
     </div>
 
-  </div> <!-- end #app-content -->
+  </div> <!-- end app-content -->
 
   <footer>
     <div class="footer-top">
@@ -242,14 +240,13 @@
   </footer>
 
   <script>
-    // ----- PIN LOGIC -----
+    // ===== PIN LOGIC =====
     const pinCard = document.getElementById("pin-card");
     const appContent = document.getElementById("app-content");
     const pinInput = document.getElementById("pin-input");
     const pinBtn = document.getElementById("pin-btn");
     const pinError = document.getElementById("pin-error");
 
-    // show app if PIN already verified
     if (localStorage.getItem("lssc-pin-ok") === "yes") {
       pinCard.style.display = "none";
       appContent.style.display = "block";
@@ -261,10 +258,7 @@
       const formData = new FormData();
       formData.append("pin", pin);
       try {
-        const res = await fetch("/auth", {
-          method: "POST",
-          body: formData
-        });
+        const res = await fetch("/auth", { method: "POST", body: formData });
         if (!res.ok) throw new Error("bad pin");
         localStorage.setItem("lssc-pin-ok", "yes");
         pinCard.style.display = "none";
@@ -275,110 +269,141 @@
       }
     });
 
-    // ----- PREMIUM LOGIC -----
+    // ===== ELEMENTS =====
+    const fileInput = document.getElementById("file");
+    const statusEl = document.getElementById("status");
+    const freeSection = document.getElementById("free-section");
+    const swimmerSelect = document.getElementById("swimmerSelect");
+    const previewBox = document.getElementById("previewBox");
+    const previewContent = document.getElementById("previewContent");
+    const resultsBox = document.getElementById("resultsBox");
+    const resultsContent = document.getElementById("resultsContent");
+    const submitBtn = document.getElementById("submitBtn");
+    const downloadResultsBtn = document.getElementById("downloadResultsBtn");
+
+    // premium elements
     const premiumCard = document.getElementById("premium-card");
     const premiumInput = document.getElementById("premium-input");
     const premiumBtn = document.getElementById("premium-btn");
     const premiumStatus = document.getElementById("premium-status");
     const premiumFeatures = document.getElementById("premium-features");
-    const freeSection = document.getElementById("free-section");
 
-    // if already premium on this browser
-    if (localStorage.getItem("lssc-premium-ok") === "yes") {
-      if (premiumFeatures) premiumFeatures.style.display = "block";
-      if (premiumCard) premiumCard.style.display = "none";
+    // pro elements
+    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
+    const proMulti = document.getElementById("pro-multi-swimmers");
+    const proPreviewBtn = document.getElementById("pro-preview-team");
+    const proPreviewBox = document.getElementById("pro-preview-box");
+    const proPreviewContent = document.getElementById("pro-preview-content");
+    const proOrderBy = document.getElementById("pro-order-by");
+
+    let currentEvents = [];
+    let currentSwimmerName = "";
+    let currentSwimmerList = [];
+
+    // start pro buttons disabled
+    if (proPreviewBtn) proPreviewBtn.disabled = true;
+    if (proDownloadBtn) proDownloadBtn.disabled = true;
+
+    // ===== helper: hide free card =====
+    function hideFreeCard() {
       if (freeSection) freeSection.style.display = "none";
     }
 
+    // ===== PREMIUM AUTO-SHOW =====
+    if (localStorage.getItem("lssc-premium-ok") === "yes") {
+      if (premiumFeatures) premiumFeatures.style.display = "block";
+      if (premiumCard) premiumCard.style.display = "none";
+      hideFreeCard();
+
+      // show note if no file yet
+      if (!fileInput || fileInput.files.length === 0) {
+        premiumFeatures.insertAdjacentHTML("beforeend", `
+          <div class="pro-upload-note" style="margin-top:1rem; padding:0.75rem; background:#fff6e6; border:1px solid #ffd580; border-radius:6px;">
+            <strong>Note:</strong> Please upload a heat sheet file first to enable Pro features.
+          </div>
+        `);
+      }
+    }
+
+    // ===== PREMIUM UNLOCK CLICK =====
     premiumBtn.addEventListener("click", async () => {
       const code = premiumInput.value.trim();
       if (!code) return;
       const fd = new FormData();
       fd.append("code", code);
       try {
-        const res = await fetch("/premium-auth", {
-          method: "POST",
-          body: fd
-        });
+        const res = await fetch("/premium-auth", { method: "POST", body: fd });
         if (!res.ok) throw new Error("bad code");
-        const data = await res.json();
+        await res.json();
         localStorage.setItem("lssc-premium-ok", "yes");
         premiumStatus.style.display = "none";
         if (premiumFeatures) premiumFeatures.style.display = "block";
         if (premiumCard) premiumCard.style.display = "none";
-        if (freeSection) freeSection.style.display = "none";
+        hideFreeCard();
+
+        if (!fileInput || fileInput.files.length === 0) {
+          premiumFeatures.insertAdjacentHTML("beforeend", `
+            <div class="pro-upload-note" style="margin-top:1rem; padding:0.75rem; background:#fff6e6; border:1px solid #ffd580; border-radius:6px;">
+              <strong>Note:</strong> Please upload a heat sheet file first to enable Pro features.
+            </div>
+          `);
+        }
       } catch (err) {
         premiumStatus.textContent = "Invalid premium code.";
         premiumStatus.style.display = "block";
       }
     });
 
-    // ----- FREE APP LOGIC -----
-    const btn = document.getElementById("submitBtn");
-    const statusEl = document.getElementById("status");
-    const fileInput = document.getElementById("file");
-    const swimmerSelect = document.getElementById("swimmerSelect");
-    const previewBox = document.getElementById("previewBox");
-    const previewContent = document.getElementById("previewContent");
-    const resultsBox = document.getElementById("resultsBox");
-    const resultsContent = document.getElementById("resultsContent");
-    const downloadResultsBtn = document.getElementById("downloadResultsBtn");
-
-    let currentEvents = [];
-    let currentSwimmerName = "";
-    let currentSwimmerList = [];
-
+    // ===== STORAGE HELPERS =====
     function storageKeyFor(swimmer) {
       return "lssc-results-" + swimmer.toLowerCase().replace(/\s+/g, "_");
     }
-
     function loadResultsFromStorage(swimmer) {
       if (!swimmer) return {};
       const key = storageKeyFor(swimmer);
       const raw = localStorage.getItem(key);
       if (!raw) return {};
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return {};
-      }
+      try { return JSON.parse(raw); } catch { return {}; }
     }
-
     function saveResultsToStorage(swimmer, obj) {
       if (!swimmer) return;
       const key = storageKeyFor(swimmer);
       localStorage.setItem(key, JSON.stringify(obj));
     }
 
-    // when a PDF is chosen, load swimmers
+    // ===== FILE CHANGE: LOAD SWIMMERS =====
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
       if (!file) return;
       statusEl.textContent = "Reading heat sheet and finding swimmers...";
-      swimmerSelect.innerHTML = '<option value="">Loading...</option>';
-      previewBox.style.display = "none";
-      resultsBox.style.display = "none";
-      previewContent.innerHTML = "";
-      resultsContent.innerHTML = "";
+      if (swimmerSelect) swimmerSelect.innerHTML = '<option value="">Loading...</option>';
+      if (previewBox) previewBox.style.display = "none";
+      if (resultsBox) resultsBox.style.display = "none";
+      if (previewContent) previewContent.innerHTML = "";
+      if (resultsContent) resultsContent.innerHTML = "";
+
       const formData = new FormData();
       formData.append("file", file);
+
       try {
         const res = await fetch("/list-swimmers", { method: "POST", body: formData });
         if (!res.ok) throw new Error("Error loading swimmers");
         const data = await res.json();
         const swimmers = data.swimmers || [];
-        swimmerSelect.innerHTML = "";
-        swimmers.forEach(name => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          swimmerSelect.appendChild(opt);
-        });
+
+        if (swimmerSelect) {
+          swimmerSelect.innerHTML = "";
+          swimmers.forEach(name => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            swimmerSelect.appendChild(opt);
+          });
+        }
 
         currentSwimmerList = swimmers;
 
-        // also fill pro multi-select
-        const proMulti = document.getElementById("pro-multi-swimmers");
+        // fill pro multi-select
         if (proMulti) {
           proMulti.innerHTML = "";
           currentSwimmerList.forEach(name => {
@@ -389,81 +414,93 @@
           });
         }
 
+        // enable pro buttons
+        if (proPreviewBtn) proPreviewBtn.disabled = false;
+        if (proDownloadBtn) proDownloadBtn.disabled = false;
+
+        // remove "upload first" note
+        const note = document.querySelector("#premium-features .pro-upload-note");
+        if (note) note.remove();
+
         statusEl.textContent = "Swimmers loaded. Pick one to preview.";
       } catch (err) {
         statusEl.textContent = "Error reading swimmers from PDF.";
-        swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
+        if (swimmerSelect) swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
       }
     });
 
-    // load events for a chosen swimmer
-    swimmerSelect.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      const swimmerName = swimmerSelect.value;
-      if (!file || !swimmerName) return;
-      currentSwimmerName = swimmerName;
-      statusEl.textContent = "Loading events for " + swimmerName + "...";
-      const formData = new FormData();
-      formData.append("swimmer_name", swimmerName);
-      formData.append("file", file);
-      try {
-        const res = await fetch("/extract", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("Error loading events");
-        const data = await res.json();
-        const events = data.events || [];
-        currentEvents = events;
-        previewBox.style.display = "block";
-        previewContent.innerHTML = "";
-        resultsBox.style.display = "none";
-        resultsContent.innerHTML = "";
+    // ===== SWIMMER CHANGE =====
+    if (swimmerSelect) {
+      swimmerSelect.addEventListener("change", async () => {
+        const file = fileInput.files[0];
+        const swimmerName = swimmerSelect.value;
+        if (!file || !swimmerName) return;
+        currentSwimmerName = swimmerName;
+        statusEl.textContent = "Loading events for " + swimmerName + "...";
+        const formData = new FormData();
+        formData.append("swimmer_name", swimmerName);
+        formData.append("file", file);
+        try {
+          const res = await fetch("/extract", { method: "POST", body: formData });
+          if (!res.ok) throw new Error("Error loading events");
+          const data = await res.json();
+          const events = data.events || [];
+          currentEvents = events;
+          if (previewBox) previewBox.style.display = "block";
+          if (previewContent) previewContent.innerHTML = "";
+          if (resultsBox) resultsBox.style.display = "none";
+          if (resultsContent) resultsContent.innerHTML = "";
 
-        const saved = loadResultsFromStorage(swimmerName);
+          const saved = loadResultsFromStorage(swimmerName);
 
-        if (events.length === 0) {
-          previewContent.innerHTML = '<p class="muted">No events found for this swimmer.</p>';
-          statusEl.textContent = "No events found.";
-          return;
+          if (events.length === 0) {
+            if (previewContent) previewContent.innerHTML = '<p class="muted">No events found for this swimmer.</p>';
+            statusEl.textContent = "No events found.";
+            return;
+          }
+
+          events.forEach(ev => {
+            const totalHeats = ev.total_heats ? ev.total_heats : "?";
+            const evId = `event-${ev.event_number}-${ev.heat}`;
+            const savedTime = saved[evId] || "";
+            const div = document.createElement("div");
+            div.className = "event";
+            div.innerHTML = `
+              <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
+              <div>
+                Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> |
+                Lane: <b>${ev.lane ?? ""}</b> |
+                Seed: <b>${ev.seed_time ?? ""}</b>
+              </div>
+              <div style="margin-top:0.4rem;">
+                Final time (enter after race):
+                <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" />
+              </div>
+            `;
+            if (previewContent) previewContent.appendChild(div);
+          });
+
+          statusEl.textContent = "Preview ready. Enter times after each event.";
+          renderResultsTable();
+        } catch (err) {
+          statusEl.textContent = "Error loading swimmer events.";
         }
+      });
+    }
 
-        events.forEach(ev => {
-          const totalHeats = ev.total_heats ? ev.total_heats : "?";
-          const evId = `event-${ev.event_number}-${ev.heat}`;
-          const savedTime = saved[evId] || "";
-          const div = document.createElement("div");
-          div.className = "event";
-          div.innerHTML = `
-            <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
-            <div>
-              Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> |
-              Lane: <b>${ev.lane ?? ""}</b> |
-              Seed: <b>${ev.seed_time ?? ""}</b>
-            </div>
-            <div style="margin-top:0.4rem;">
-              Final time (enter after race):
-              <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" />
-            </div>
-          `;
-          previewContent.appendChild(div);
-        });
-
-        statusEl.textContent = "Preview ready. Enter times after each event.";
-        renderResultsTable();
-      } catch (err) {
-        statusEl.textContent = "Error loading swimmer events.";
-      }
-    });
-
-    // save times as user types
-    previewContent.addEventListener("input", (e) => {
-      if (e.target && e.target.matches("input[data-event-id]")) {
-        const evId = e.target.getAttribute("data-event-id");
-        const val = e.target.value.trim();
-        const saved = loadResultsFromStorage(currentSwimmerName);
-        saved[evId] = val;
-        saveResultsToStorage(currentSwimmerName, saved);
-        renderResultsTable();
-      }
-    });
+    // ===== save entered times =====
+    if (previewContent) {
+      previewContent.addEventListener("input", (e) => {
+        if (e.target && e.target.matches("input[data-event-id]")) {
+          const evId = e.target.getAttribute("data-event-id");
+          const val = e.target.value.trim();
+          const saved = loadResultsFromStorage(currentSwimmerName);
+          saved[evId] = val;
+          saveResultsToStorage(currentSwimmerName, saved);
+          renderResultsTable();
+        }
+      });
+    }
 
     function timeToSeconds(t) {
       if (!t) return null;
@@ -519,59 +556,53 @@
       html += `</table>`;
 
       if (hasAny) {
-        resultsBox.style.display = "block";
-        resultsContent.innerHTML = html;
+        if (resultsBox) resultsBox.style.display = "block";
+        if (resultsContent) resultsContent.innerHTML = html;
       } else {
-        resultsBox.style.display = "none";
-        resultsContent.innerHTML = "";
+        if (resultsBox) resultsBox.style.display = "none";
+        if (resultsContent) resultsContent.innerHTML = "";
       }
     }
 
-    // download results pdf
-    downloadResultsBtn.addEventListener("click", async () => {
-      if (!currentSwimmerName || currentEvents.length === 0) return;
-      const saved = loadResultsFromStorage(currentSwimmerName);
-      const payload = currentEvents.map(ev => {
-        const evId = `event-${ev.event_number}-${ev.heat}`;
-        return {
-          event_number: ev.event_number,
-          event_name: ev.event_name,
-          heat: ev.heat,
-          total_heats: ev.total_heats || null,
-          lane: ev.lane || null,
-          seed_time: ev.seed_time || "",
-          final_time: saved[evId] || ""
-        };
-      });
-      const formData = new FormData();
-      formData.append("swimmer_name", currentSwimmerName);
-      formData.append("results_json", JSON.stringify(payload));
-      try {
-        const res = await fetch("/generate-results-pdf", {
-          method: "POST",
-          body: formData
+    // ===== download results pdf =====
+    if (downloadResultsBtn) {
+      downloadResultsBtn.addEventListener("click", async () => {
+        if (!currentSwimmerName || currentEvents.length === 0) return;
+        const saved = loadResultsFromStorage(currentSwimmerName);
+        const payload = currentEvents.map(ev => {
+          const evId = `event-${ev.event_number}-${ev.heat}`;
+          return {
+            event_number: ev.event_number,
+            event_name: ev.event_name,
+            heat: ev.heat,
+            total_heats: ev.total_heats || null,
+            lane: ev.lane || null,
+            seed_time: ev.seed_time || "",
+            final_time: saved[evId] || ""
+          };
         });
-        if (!res.ok) throw new Error("PDF failed");
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = currentSwimmerName.replace(/\s+/g, "_") + "_results.pdf";
-        a.click();
-      } catch (err) {
-        alert("Could not download results PDF.");
-      }
-    });
+        const formData = new FormData();
+        formData.append("swimmer_name", currentSwimmerName);
+        formData.append("results_json", JSON.stringify(payload));
+        try {
+          const res = await fetch("/generate-results-pdf", {
+            method: "POST",
+            body: formData
+          });
+          if (!res.ok) throw new Error("PDF failed");
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = currentSwimmerName.replace(/\s+/g, "_") + "_results.pdf";
+          a.click();
+        } catch (err) {
+          alert("Could not download results PDF.");
+        }
+      });
+    }
 
-    // ----- PRO (multi-swimmer) -----
-    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
-    const proMulti = document.getElementById("pro-multi-swimmers");
-    const proPreviewBtn = document.getElementById("pro-preview-team");
-    const proPreviewBox = document.getElementById("pro-preview-box");
-    const proPreviewContent = document.getElementById("pro-preview-content");
-    const proOrderBy = document.getElementById("pro-order-by");
-
-    // Pro: preview combined
+    // ===== PRO PREVIEW =====
     if (proPreviewBtn) {
       proPreviewBtn.addEventListener("click", async () => {
         const file = fileInput.files[0];
@@ -581,40 +612,42 @@
         }
         if (!proMulti) return;
 
+        proPreviewBtn.disabled = true;
+        const originalText = proPreviewBtn.textContent;
+        proPreviewBtn.textContent = "Loading preview...";
+
         const selected = Array.from(proMulti.options)
-          .filter(function (opt) { return opt.selected; })
-          .map(function (opt) { return opt.value; });
+          .filter(opt => opt.selected)
+          .map(opt => opt.value);
 
         if (selected.length === 0) {
           alert("Select at least one swimmer.");
+          proPreviewBtn.disabled = false;
+          proPreviewBtn.textContent = originalText;
           return;
         }
 
         const combined = [];
-        const fetches = selected.map(function (name) {
+        const fetches = selected.map(name => {
           const fd = new FormData();
           fd.append("swimmer_name", name);
           fd.append("file", file);
-          return { name: name, fd: fd };
+          return { name, fd };
         });
 
         try {
           const results = await Promise.all(
-            fetches.map(function (item) {
-              return fetch("/extract", {
-                method: "POST",
-                body: item.fd
-              }).then(function (res) {
-                if (!res.ok) throw new Error("extract failed");
-                return res.json().then(function (data) {
-                  return { name: item.name, events: data.events || [] };
-                });
-              });
-            })
+            fetches.map(item =>
+              fetch("/extract", { method: "POST", body: item.fd })
+                .then(res => {
+                  if (!res.ok) throw new Error("extract failed");
+                  return res.json().then(data => ({ name: item.name, events: data.events || [] }));
+                })
+            )
           );
 
-          results.forEach(function (swObj) {
-            swObj.events.forEach(function (ev) {
+          results.forEach(swObj => {
+            swObj.events.forEach(ev => {
               combined.push({
                 swimmer: swObj.name,
                 event_number: ev.event_number,
@@ -627,27 +660,22 @@
             });
           });
 
-          // sort according to selection
-          var order = proOrderBy ? proOrderBy.value : "swimmer";
+          const order = proOrderBy ? proOrderBy.value : "swimmer";
           if (order === "event") {
-            combined.sort(function(a, b) {
-              if (a.event_number !== b.event_number) {
-                return a.event_number - b.event_number;
-              }
-              var ah = a.heat || 0;
-              var bh = b.heat || 0;
+            combined.sort((a, b) => {
+              if (a.event_number !== b.event_number) return a.event_number - b.event_number;
+              const ah = a.heat || 0;
+              const bh = b.heat || 0;
               if (ah !== bh) return ah - bh;
               return a.swimmer.localeCompare(b.swimmer);
             });
           } else {
-            combined.sort(function(a, b) {
-              var s = a.swimmer.localeCompare(b.swimmer);
+            combined.sort((a, b) => {
+              const s = a.swimmer.localeCompare(b.swimmer);
               if (s !== 0) return s;
-              if (a.event_number !== b.event_number) {
-                return a.event_number - b.event_number;
-              }
-              var ah = a.heat || 0;
-              var bh = b.heat || 0;
+              if (a.event_number !== b.event_number) return a.event_number - b.event_number;
+              const ah = a.heat || 0;
+              const bh = b.heat || 0;
               return ah - bh;
             });
           }
@@ -655,21 +683,20 @@
           if (combined.length === 0) {
             proPreviewContent.innerHTML = '<p class="muted">No events found for selected swimmers.</p>';
           } else {
-            var html = "";
-            combined.forEach(function (item) {
-              var lane = item.lane ? item.lane : "";
-              var seed = item.seed_time ? item.seed_time : "";
-              var totalHeatsText = item.total_heats ? (" of " + item.total_heats) : "";
-              html +=
-                '<div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">' +
-                  '<div style="font-weight:bold;">' + item.swimmer + '</div>' +
-                  '<div>Event #' + item.event_number + ' – ' + item.event_name + '</div>' +
-                  '<div style="font-size:0.8rem; color:#444;">' +
-                    'Heat: ' + item.heat + totalHeatsText + ' | ' +
-                    'Lane: ' + lane + ' | ' +
-                    'Seed: ' + seed +
-                  '</div>' +
-                '</div>';
+            let html = "";
+            combined.forEach(item => {
+              const totalHeats = item.total_heats ? ` of ${item.total_heats}` : "";
+              html += `
+                <div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
+                  <div style="font-weight:bold;">${item.swimmer}</div>
+                  <div>Event #${item.event_number} – ${item.event_name}</div>
+                  <div style="font-size:0.8rem; color:#444;">
+                    Heat: ${item.heat}${totalHeats} |
+                    Lane: ${item.lane ?? ""} |
+                    Seed: ${item.seed_time ?? ""}
+                  </div>
+                </div>
+              `;
             });
             proPreviewContent.innerHTML = html;
           }
@@ -678,10 +705,13 @@
         } catch (err) {
           alert("Could not load combined preview.");
         }
+
+        proPreviewBtn.disabled = false;
+        proPreviewBtn.textContent = originalText;
       });
     }
 
-    // Pro: download combined pdf
+    // ===== PRO DOWNLOAD =====
     if (proDownloadBtn) {
       proDownloadBtn.addEventListener("click", async () => {
         const file = fileInput.files[0];
@@ -692,8 +722,8 @@
         if (!proMulti) return;
 
         const selected = Array.from(proMulti.options)
-          .filter(function (opt) { return opt.selected; })
-          .map(function (opt) { return opt.value; });
+          .filter(opt => opt.selected)
+          .map(opt => opt.value);
 
         if (selected.length === 0) {
           alert("Select at least one swimmer.");
@@ -703,8 +733,8 @@
         const fd = new FormData();
         fd.append("file", file);
         fd.append("swimmers_json", JSON.stringify(selected));
-        const orderVal = proOrderBy ? proOrderBy.value : "swimmer";
-        fd.append("order_by", orderVal);
+        const order = proOrderBy ? proOrderBy.value : "swimmer";
+        fd.append("order_by", order);
 
         try {
           const res = await fetch("/generate-team-pdf", {
@@ -724,17 +754,17 @@
       });
     }
 
-    // existing: download schedule pdf (free)
-    btn.addEventListener("click", async () => {
+    // ===== FREE: download schedule pdf =====
+    submitBtn.addEventListener("click", async () => {
       const file = fileInput.files[0];
-      const swimmerName = swimmerSelect.value;
+      const swimmerName = swimmerSelect ? swimmerSelect.value : "";
       if (!file || !swimmerName) {
         statusEl.textContent = "Please upload a file and select a swimmer.";
         return;
       }
-      btn.disabled = true;
-      btn.classList.remove("success");
-      btn.textContent = "Generating...";
+      submitBtn.disabled = true;
+      submitBtn.classList.remove("success");
+      submitBtn.textContent = "Generating...";
       const formData = new FormData();
       formData.append("swimmer_name", swimmerName);
       formData.append("file", file);
@@ -747,19 +777,20 @@
         a.href = url;
         a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
         a.click();
-        btn.classList.add("success");
-        btn.textContent = "Schedule Ready ✓";
+        submitBtn.classList.add("success");
+        submitBtn.textContent = "Schedule Ready ✓";
         statusEl.textContent = "PDF downloaded successfully.";
         setTimeout(() => {
-          btn.classList.remove("success");
-          btn.textContent = "Generate Schedule";
+          submitBtn.classList.remove("success");
+          submitBtn.textContent = "Generate Schedule";
         }, 3000);
       } catch (err) {
         statusEl.textContent = "Error generating PDF.";
       } finally {
-        btn.disabled = false;
+        submitBtn.disabled = false;
       }
     });
+
   </script>
 </body>
 </html>
