@@ -39,7 +39,7 @@
       margin-bottom: 1rem;
     }
     label { display: block; margin-top: 1rem; font-weight: bold; }
-    input[type="file"], select, input[type="password"] {
+    input[type="file"], select, input[type="password"], input[type="text"] {
       width: 100%;
       margin-top: 0.25rem;
     }
@@ -59,21 +59,6 @@
     button.success { background: #28a745 !important; transform: scale(1.05); }
     #status { margin-top: 1rem; font-size: 0.9rem; min-height: 1.2rem; }
 
-    .preview, .results {
-      background: #fff;
-      padding: 1rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
-    .preview h3, .results h3 { margin-top: 0; margin-bottom: 0.75rem; }
-    .event {
-      border: 1px solid #e1e1e1;
-      border-radius: 6px;
-      padding: 0.5rem 0.75rem;
-      margin-bottom: 0.5rem;
-      background: #f9fbff;
-    }
-    .event-title { font-weight: bold; }
     .muted { color: #666; font-size: 0.85rem; }
 
     footer {
@@ -120,7 +105,7 @@
       text-align: center;
       color: #444;
     }
-    /* hide app until PIN is verified */
+    /* app is hidden until PIN is valid */
     #app-content {
       display: none;
     }
@@ -153,10 +138,13 @@
     <div id="pin-error">Incorrect PIN. Please try again.</div>
   </div>
 
-  <!-- REAL APP CONTENT -->
+  <!-- MAIN APP (hidden until PIN ok) -->
   <div id="app-content">
-    <div class="card">
-      <p>Upload the meet heat sheet PDF and we’ll create a swimmer-only view of events — easy, fast, SwimDay Simplified.</p>
+
+    <!-- FREE SECTION -->
+    <div id="free-section" class="card">
+      <h3>Free Version</h3>
+      <p>Upload the meet heat sheet PDF and create a swimmer-only view.</p>
 
       <label for="file">Heat sheet (PDF)</label>
       <input id="file" type="file" accept=".pdf" />
@@ -169,41 +157,18 @@
       <button id="submitBtn">Generate Schedule</button>
 
       <div id="status"></div>
+
+      <div id="previewBox" style="display:none; margin-top:1rem;">
+        <h3>Event Preview</h3>
+        <div id="previewContent"></div>
+      </div>
+
+      <div id="resultsBox" style="display:none; margin-top:1rem;">
+        <h3>Results vs Seed</h3>
+        <div id="resultsContent"></div>
+        <button id="downloadResultsBtn" style="margin-top:0.7rem;">Download Results PDF</button>
+      </div>
     </div>
-
-    <!-- PREMIUM FEATURE AREA (hidden until unlocked) -->
-    <div id="premium-features" class="card" style="display:none; margin-top:1rem;">
-  <h3>Premium Features</h3>
-  <p>Premium features are unlocked on this device.</p>
-
-  <label for="pro-multi-swimmers" style="margin-top:0.5rem; display:block;">Select swimmers to combine:</label>
-  <select
-    id="pro-multi-swimmers"
-    multiple
-    size="8"
-    style="width:100%; max-width:420px; min-height:180px; overflow-y:auto;">
-    <!-- filled by JS -->
-  </select>
-
-  <button id="pro-preview-team" style="margin-top:0.7rem;">
-    Preview Combined Events
-  </button>
-
-  <button id="pro-download-team-pdf" style="margin-top:0.7rem; margin-left:0;">
-    Download Team Schedule PDF
-  </button>
-
-  <p class="muted" style="margin-top:0.4rem;">Tip: hold Ctrl (Windows) to pick more than one.</p>
-
-  <!-- Pro combined preview -->
-  <div id="pro-preview-box" style="margin-top:1rem; background:#f4f7ff; padding:0.75rem; border-radius:6px; display:none;">
-    <h4 style="margin-top:0; margin-bottom:0.5rem;">Combined Event Preview</h4>
-    <div id="pro-preview-content" style="max-height:220px; overflow-y:auto;"></div>
-  </div>
-</div>
-
-
-
 
     <!-- PREMIUM UNLOCK CARD -->
     <div id="premium-card" class="card" style="margin-top:1rem;">
@@ -214,18 +179,43 @@
       <div id="premium-status" style="font-size:0.8rem; color:#b20000; margin-top:0.4rem; display:none;"></div>
     </div>
 
-    <div class="preview" id="previewBox" style="display:none;">
-      <h3>Event Preview</h3>
-      <div id="previewContent"></div>
+    <!-- PREMIUM FEATURES (hidden until unlocked) -->
+    <div id="premium-features" class="card" style="display:none; margin-top:1rem;">
+      <h3>Premium Features</h3>
+      <p>Premium features are unlocked on this device.</p>
+
+      <label for="pro-multi-swimmers" style="margin-top:0.5rem; display:block;">Select swimmers to combine:</label>
+      <select
+        id="pro-multi-swimmers"
+        multiple
+        size="8"
+        style="width:100%; max-width:420px; min-height:180px; overflow-y:auto;">
+      </select>
+
+      <label for="pro-order-by" style="margin-top:0.5rem; display:block;">Order PDF by:</label>
+      <select id="pro-order-by" style="max-width:220px;">
+        <option value="swimmer" selected>Swimmer (default)</option>
+        <option value="event">Event</option>
+      </select>
+
+      <button id="pro-preview-team" style="margin-top:0.7rem;">
+        Preview Combined Events
+      </button>
+
+      <button id="pro-download-team-pdf" style="margin-top:0.7rem; margin-left:0;">
+        Download Team Schedule PDF
+      </button>
+
+      <p class="muted" style="margin-top:0.4rem;">Tip: hold Ctrl (Windows) to pick more than one.</p>
+
+      <!-- Pro combined preview -->
+      <div id="pro-preview-box" style="margin-top:1rem; background:#f4f7ff; padding:0.75rem; border-radius:6px; display:none;">
+        <h4 style="margin-top:0; margin-bottom:0.5rem;">Combined Event Preview</h4>
+        <div id="pro-preview-content" style="max-height:220px; overflow-y:auto;"></div>
+      </div>
     </div>
 
-    <!-- NEW: Results vs Seed section -->
-    <div class="preview" id="resultsBox" style="display:none; margin-top:1rem;">
-      <h3>Results vs Seed</h3>
-      <div id="resultsContent"></div>
-      <button id="downloadResultsBtn" style="margin-top:0.7rem;">Download Results PDF</button>
-    </div>
-  </div>
+  </div> <!-- end #app-content -->
 
   <footer>
     <div class="footer-top">
@@ -252,13 +242,14 @@
   </footer>
 
   <script>
+    // ----- PIN LOGIC -----
     const pinCard = document.getElementById("pin-card");
     const appContent = document.getElementById("app-content");
     const pinInput = document.getElementById("pin-input");
     const pinBtn = document.getElementById("pin-btn");
     const pinError = document.getElementById("pin-error");
 
-    // if already verified, show app
+    // show app if PIN already verified
     if (localStorage.getItem("lssc-pin-ok") === "yes") {
       pinCard.style.display = "none";
       appContent.style.display = "block";
@@ -284,19 +275,20 @@
       }
     });
 
-        // PREMIUM UNLOCK LOGIC
+    // ----- PREMIUM LOGIC -----
     const premiumCard = document.getElementById("premium-card");
     const premiumInput = document.getElementById("premium-input");
     const premiumBtn = document.getElementById("premium-btn");
     const premiumStatus = document.getElementById("premium-status");
     const premiumFeatures = document.getElementById("premium-features");
+    const freeSection = document.getElementById("free-section");
 
-   // if already unlocked on this browser, show premium area and hide the unlock card
-  if (localStorage.getItem("lssc-premium-ok") === "yes") {
-  if (premiumFeatures) premiumFeatures.style.display = "block";
-  if (premiumCard) premiumCard.style.display = "none";
-}
-
+    // if already premium on this browser
+    if (localStorage.getItem("lssc-premium-ok") === "yes") {
+      if (premiumFeatures) premiumFeatures.style.display = "block";
+      if (premiumCard) premiumCard.style.display = "none";
+      if (freeSection) freeSection.style.display = "none";
+    }
 
     premiumBtn.addEventListener("click", async () => {
       const code = premiumInput.value.trim();
@@ -310,17 +302,18 @@
         });
         if (!res.ok) throw new Error("bad code");
         const data = await res.json();
-        // save locally so user doesn't have to retype
         localStorage.setItem("lssc-premium-ok", "yes");
         premiumStatus.style.display = "none";
         if (premiumFeatures) premiumFeatures.style.display = "block";
         if (premiumCard) premiumCard.style.display = "none";
+        if (freeSection) freeSection.style.display = "none";
       } catch (err) {
         premiumStatus.textContent = "Invalid premium code.";
         premiumStatus.style.display = "block";
       }
     });
 
+    // ----- FREE APP LOGIC -----
     const btn = document.getElementById("submitBtn");
     const statusEl = document.getElementById("status");
     const fileInput = document.getElementById("file");
@@ -331,11 +324,8 @@
     const resultsContent = document.getElementById("resultsContent");
     const downloadResultsBtn = document.getElementById("downloadResultsBtn");
 
-    // we'll store current swimmer + events
     let currentEvents = [];
     let currentSwimmerName = "";
-
-    // store swimmer list for pro features
     let currentSwimmerList = [];
 
     function storageKeyFor(swimmer) {
@@ -360,7 +350,7 @@
       localStorage.setItem(key, JSON.stringify(obj));
     }
 
-    // load swimmers from PDF
+    // when a PDF is chosen, load swimmers
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
       if (!file) return;
@@ -385,10 +375,9 @@
           swimmerSelect.appendChild(opt);
         });
 
-        // 👇 NEW: save list for pro features
         currentSwimmerList = swimmers;
 
-        // 👇 NEW: also populate the pro multi-select if it exists
+        // also fill pro multi-select
         const proMulti = document.getElementById("pro-multi-swimmers");
         if (proMulti) {
           proMulti.innerHTML = "";
@@ -401,14 +390,13 @@
         }
 
         statusEl.textContent = "Swimmers loaded. Pick one to preview.";
-
       } catch (err) {
         statusEl.textContent = "Error reading swimmers from PDF.";
         swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
       }
     });
 
-    // load events for selected swimmer
+    // load events for a chosen swimmer
     swimmerSelect.addEventListener("change", async () => {
       const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
@@ -429,7 +417,6 @@
         resultsBox.style.display = "none";
         resultsContent.innerHTML = "";
 
-        // load saved times for this swimmer
         const saved = loadResultsFromStorage(swimmerName);
 
         if (events.length === 0) {
@@ -460,14 +447,13 @@
         });
 
         statusEl.textContent = "Preview ready. Enter times after each event.";
-        // show results if any saved
         renderResultsTable();
       } catch (err) {
         statusEl.textContent = "Error loading swimmer events.";
       }
     });
 
-    // save entered times and update results
+    // save times as user types
     previewContent.addEventListener("input", (e) => {
       if (e.target && e.target.matches("input[data-event-id]")) {
         const evId = e.target.getAttribute("data-event-id");
@@ -577,14 +563,15 @@
       }
     });
 
-        // === PRO (multi-swimmer) ===
+    // ----- PRO (multi-swimmer) -----
     const proDownloadBtn = document.getElementById("pro-download-team-pdf");
     const proMulti = document.getElementById("pro-multi-swimmers");
     const proPreviewBtn = document.getElementById("pro-preview-team");
     const proPreviewBox = document.getElementById("pro-preview-box");
     const proPreviewContent = document.getElementById("pro-preview-content");
+    const proOrderBy = document.getElementById("pro-order-by");
 
-    // Pro: preview combined events
+    // Pro: preview combined
     if (proPreviewBtn) {
       proPreviewBtn.addEventListener("click", async () => {
         const file = fileInput.files[0];
@@ -604,8 +591,6 @@
         }
 
         const combined = [];
-
-        // build formdatas for each swimmer
         const fetches = selected.map(function (name) {
           const fd = new FormData();
           fd.append("swimmer_name", name);
@@ -628,7 +613,6 @@
             })
           );
 
-          // flatten
           results.forEach(function (swObj) {
             swObj.events.forEach(function (ev) {
               combined.push({
@@ -643,17 +627,31 @@
             });
           });
 
-          // sort by event then heat
-          combined.sort(function (a, b) {
-            if (a.event_number !== b.event_number) {
-              return a.event_number - b.event_number;
-            }
-            var ah = a.heat || 0;
-            var bh = b.heat || 0;
-            return ah - bh;
-          });
+          // sort according to selection
+          var order = proOrderBy ? proOrderBy.value : "swimmer";
+          if (order === "event") {
+            combined.sort(function(a, b) {
+              if (a.event_number !== b.event_number) {
+                return a.event_number - b.event_number;
+              }
+              var ah = a.heat || 0;
+              var bh = b.heat || 0;
+              if (ah !== bh) return ah - bh;
+              return a.swimmer.localeCompare(b.swimmer);
+            });
+          } else {
+            combined.sort(function(a, b) {
+              var s = a.swimmer.localeCompare(b.swimmer);
+              if (s !== 0) return s;
+              if (a.event_number !== b.event_number) {
+                return a.event_number - b.event_number;
+              }
+              var ah = a.heat || 0;
+              var bh = b.heat || 0;
+              return ah - bh;
+            });
+          }
 
-          // render
           if (combined.length === 0) {
             proPreviewContent.innerHTML = '<p class="muted">No events found for selected swimmers.</p>';
           } else {
@@ -683,7 +681,7 @@
       });
     }
 
-    // Pro: download combined PDF
+    // Pro: download combined pdf
     if (proDownloadBtn) {
       proDownloadBtn.addEventListener("click", async () => {
         const file = fileInput.files[0];
@@ -705,6 +703,8 @@
         const fd = new FormData();
         fd.append("file", file);
         fd.append("swimmers_json", JSON.stringify(selected));
+        const orderVal = proOrderBy ? proOrderBy.value : "swimmer";
+        fd.append("order_by", orderVal);
 
         try {
           const res = await fetch("/generate-team-pdf", {
@@ -724,7 +724,7 @@
       });
     }
 
-    // existing: download schedule pdf
+    // existing: download schedule pdf (free)
     btn.addEventListener("click", async () => {
       const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
@@ -760,25 +760,6 @@
         btn.disabled = false;
       }
     });
-
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

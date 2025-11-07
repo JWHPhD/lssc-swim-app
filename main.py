@@ -124,8 +124,10 @@ async def generate_swimmer_pdf(
 @app.post("/generate-team-pdf")
 async def generate_team_pdf(
     swimmers_json: str = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    order_by: str = Form("swimmer"),
 ):
+
     """
     Build a combined PDF for multiple swimmers from the same heat sheet.
     swimmers_json = '["Hammond, Dillon", "Smith, Alex"]'
@@ -157,6 +159,26 @@ async def generate_team_pdf(
                     "seed_time": ev.get("seed_time"),
                 }
             )
+        # sort according to user choice
+    if order_by == "event":
+        # event -> heat -> swimmer
+        all_rows.sort(
+            key=lambda r: (
+                r["event_number"],
+                r["heat"] or 0,
+                r["swimmer"].lower(),
+            )
+        )
+    else:
+        # default: swimmer -> event -> heat
+        all_rows.sort(
+            key=lambda r: (
+                r["swimmer"].lower(),
+                r["event_number"],
+                r["heat"] or 0,
+            )
+        )
+
 
     # build PDF
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
