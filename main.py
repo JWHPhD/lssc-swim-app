@@ -28,7 +28,7 @@ ALLOWED_ORIGINS = [
 ]
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
-PARENT_PIN = "lssc2025"
+PARENT_PIN = os.getenv("PARENT_PIN", "lssc2025")
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,7 +56,7 @@ def read_root():
 
 # --------------- AUTH (PIN) ---------------
 @app.post("/auth")
-def auth(pin: str = Form(...)):
+async def verify_pin(pin: str = Form(...)):
     if pin == PARENT_PIN:
         return {"ok": True}
     raise HTTPException(status_code=401, detail="Invalid PIN")
@@ -65,14 +65,11 @@ def auth(pin: str = Form(...)):
 PREMIUM_CODE = os.getenv("PREMIUM_CODE", "lssc-pro-2025")
 
 @app.post("/premium-auth")
-def premium_auth(code: str = Form(...)):
-    """
-    Simple premium unlock. Frontend sends a code, we compare.
-    Later you can replace this with Stripe or database checks.
-    """
+async def premium_auth(code: str = Form(...)):
     if code == PREMIUM_CODE:
-        return {"ok": True, "plan": "premium"}
+        return {"ok": True}
     raise HTTPException(status_code=401, detail="Invalid premium code")
+
 
 
 # --------------- MAIN API ENDPOINTS ---------------
