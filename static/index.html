@@ -5,122 +5,39 @@
   <title>SwimDay Simplified | Lakeshore Swim Club</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 2rem auto;
-      padding: 0 1rem 4rem;
-      background: linear-gradient(180deg, #eaf4ff 0%, #cde5fa 100%);
-      color: #000;
-    }
-    header {
-      text-align: center;
-      background-color: #002855;
-      color: white;
-      padding: 1rem 0 1.5rem;
-      border-radius: 10px;
-      margin-bottom: 1.5rem;
-      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
-    }
-    header img {
-      display: block;
-      margin: 0 auto 0.5rem;
-      width: 160px;
-      height: auto;
-    }
-    header h1 { margin: 0; font-size: 1.8rem; letter-spacing: 1px; }
-    header h2 { margin: 0.25rem 0 0; font-size: 1.2rem; font-weight: normal; color: #d9e3f0; }
+    body { font-family: Arial, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem 4rem;
+           background: linear-gradient(180deg,#eaf4ff 0%,#cde5fa 100%); color:#000; }
+    header { text-align:center; background:#002855; color:#fff; padding:1rem 0 1.5rem; border-radius:10px;
+             margin-bottom:1.25rem; box-shadow:0 3px 6px rgba(0,0,0,0.2); }
+    header img { display:block; margin:0 auto 0.5rem; width:160px; height:auto; }
+    header h1{ margin:0; font-size:1.8rem; letter-spacing:1px; }
+    header h2{ margin:0.25rem 0 0; font-size:1.2rem; font-weight:normal; color:#d9e3f0; }
 
-    .card {
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      margin-bottom: 1rem;
+    .card{ background:#fff; padding:1.25rem 1.5rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); margin-bottom:1rem; }
+    label{ display:block; margin-top:0.65rem; font-weight:bold; }
+    input[type="file"], select, input[type="password"], input[type="text"], input[type="number"]{
+      width:100%; margin-top:0.25rem; padding:0.45rem 0.5rem; border:1px solid #cfd8ea; border-radius:4px;
     }
-    label { display: block; margin-top: 1rem; font-weight: bold; }
-    input[type="file"], select, input[type="password"], input[type="text"] {
-      width: 100%;
-      margin-top: 0.25rem;
-    }
-    button {
-      margin-top: 1.5rem;
-      padding: 0.75rem 1.5rem;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 1rem;
-      transition: background 0.3s ease, transform 0.2s ease;
-    }
-    button:hover { background: #0062cc; }
-    button:disabled { background: #999; cursor: not-allowed; }
-    button.success { background: #28a745 !important; transform: scale(1.05); }
-    #status { margin-top: 1rem; font-size: 0.9rem; min-height: 1.2rem; }
+    button{ margin-top:0.8rem; padding:0.7rem 1.2rem; background:#007bff; color:#fff; border:none; border-radius:6px;
+            cursor:pointer; font-size:1rem; transition:background .2s ease, transform .15s ease; }
+    button:hover{ background:#0062cc; }
+    button:disabled{ background:#999; cursor:not-allowed; }
+    .muted{ color:#555; font-size:0.88rem; }
+    .warn{ color:#b20000; font-size:0.9rem; }
+    .row{ display:flex; gap:.8rem; flex-wrap:wrap; }
+    .row > div{ flex:1 1 220px; min-width:220px; }
 
-    .muted { color: #666; font-size: 0.85rem; }
+    .preview{ background:#fff; padding:1rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+    .event{ border:1px solid #e1e1e1; border-radius:6px; padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f9fbff; }
+    .event-title{ font-weight:bold; }
 
-    footer {
-      text-align: center;
-      color: #333;
-      font-size: 0.85rem;
-      margin-top: 2rem;
-      padding-top: 1rem;
-      border-top: 1px solid #ccc;
-    }
-    .footer-top {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .social-icons {
-      display: flex;
-      justify-content: center;
-      margin-bottom: 0.3rem;
-    }
-    .social-icons a {
-      display: inline-block;
-      margin: 0 8px;
-      color: #004aad;
-      width: 24px;
-      height: 24px;
-      transition: transform 0.2s ease, color 0.2s ease;
-    }
-    .social-icons a:hover { color: #007bff; transform: scale(1.1); }
-    .social-icons svg { width: 24px; height: 24px; vertical-align: middle; }
-    footer a { color: #004aad; text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
-    .globe-icon {
-      width: 16px;
-      height: 16px;
-      vertical-align: middle;
-      margin-right: 4px;
-      color: #004aad;
-    }
-    .created-by {
-      margin-top: 0.6rem;
-      font-size: 0.85rem;
-      text-align: center;
-      color: #444;
-    }
+    #app-content{ display:none; }
+    #pin-error{ display:none; color:#b20000; font-size:0.85rem; margin-top:0.4rem; }
 
-    /* app is hidden until PIN is valid */
-    #app-content {
-      display: none;
-    }
-    #pin-error {
-      color: #b20000;
-      font-size: 0.8rem;
-      margin-top: 0.5rem;
-      display: none;
-    }
-    table.results-table th,
-    table.results-table td {
-      border: 1px solid #d0d0d0;
-      padding: 4px;
-    }
+    table.timeline { width:100%; border-collapse:collapse; font-size:0.92rem; }
+    table.timeline th, table.timeline td { border:1px solid #d0d0d0; padding:6px; }
+    table.timeline th { background:#eaf0ff; text-align:left; }
+    .toggle-row{ display:flex; align-items:center; gap:.5rem; margin-top:.2rem; }
   </style>
 </head>
 <body>
@@ -130,7 +47,7 @@
     <h2>SwimDay Simplified</h2>
   </header>
 
-  <!-- PIN CARD -->
+  <!-- PIN -->
   <div id="pin-card" class="card">
     <p>This page is for LSSC swim parents. Please enter the access PIN.</p>
     <label for="pin-input">Access PIN</label>
@@ -139,108 +56,144 @@
     <div id="pin-error">Incorrect PIN. Please try again.</div>
   </div>
 
-  <!-- MAIN APP -->
   <div id="app-content">
-
-    <!-- ALWAYS SHOW: upload card -->
-    <div id="upload-card" class="card">
+    <!-- Heat sheet (shared) -->
+    <div id="sheet-card" class="card">
       <h3>Heat Sheet</h3>
-      <p>Upload the meet heat sheet PDF to use free or premium tools.</p>
+      <p class="muted">Upload the meet heat sheet PDF to use free or premium tools.</p>
       <label for="file">Heat sheet (PDF)</label>
       <input id="file" type="file" accept=".pdf" />
-      <div id="status"></div>
+      <div id="status" class="muted" style="margin-top:0.4rem;"></div>
+      <div id="file-needed-note" class="warn" style="display:none; margin-top:0.4rem;">Note: Please upload a heat sheet file first to enable features.</div>
     </div>
 
-    <!-- FREE SECTION (we'll hide this whole card in pro mode) -->
+    <!-- Free -->
     <div id="free-section" class="card">
       <h3>Free Version</h3>
-
       <label for="swimmerSelect">Swimmer</label>
-      <select id="swimmerSelect">
-        <option value="">-- Upload a heat sheet first --</option>
-      </select>
-
+      <select id="swimmerSelect"><option value="">-- Upload a heat sheet first --</option></select>
       <button id="submitBtn">Generate Schedule</button>
 
-      <div id="previewBox" style="display:none; margin-top:1rem;">
+      <div class="preview" id="previewBox" style="display:none; margin-top:1rem;">
         <h3>Event Preview</h3>
         <div id="previewContent"></div>
       </div>
 
-      <div id="resultsBox" style="display:none; margin-top:1rem;">
+      <div class="preview" id="resultsBox" style="display:none; margin-top:1rem;">
         <h3>Results vs Seed</h3>
         <div id="resultsContent"></div>
         <button id="downloadResultsBtn" style="margin-top:0.7rem;">Download Results PDF</button>
       </div>
     </div>
 
-    <!-- PREMIUM UNLOCK CARD -->
-    <div id="premium-card" class="card" style="margin-top:1rem;">
+    <!-- Premium unlock -->
+    <div id="premium-card" class="card">
       <h3>Have a premium code?</h3>
       <p>Enter the code to unlock Pro features on this browser.</p>
-      <input id="premium-input" type="text" placeholder="Enter premium code" style="width:100%; max-width:260px;" />
+      <input id="premium-input" type="text" placeholder="Enter premium code" style="max-width:260px;" />
       <button id="premium-btn" style="margin-top:0.6rem;">Unlock Pro</button>
-      <div id="premium-status" style="font-size:0.8rem; color:#b20000; margin-top:0.4rem; display:none;"></div>
+      <div id="premium-status" class="warn" style="display:none; margin-top:0.4rem;"></div>
     </div>
 
-    <!-- PREMIUM FEATURES -->
-    <div id="premium-features" class="card" style="display:none; margin-top:1rem;">
+    <!-- Pro features -->
+    <div id="premium-features" class="card" style="display:none;">
       <h3>Premium Features</h3>
       <p>Premium features are unlocked on this device.</p>
 
-      <label for="pro-multi-swimmers" style="margin-top:0.5rem; display:block;">Select swimmers to combine:</label>
-      <select
-        id="pro-multi-swimmers"
-        multiple
-        size="8"
-        style="width:100%; max-width:420px; min-height:180px; overflow-y:auto;">
-      </select>
+      <label for="pro-multi-swimmers">Select swimmers to combine:</label>
+      <select id="pro-multi-swimmers" multiple size="8" style="width:100%; max-width:440px;"></select>
 
-      <label for="pro-order-by" style="margin-top:0.5rem; display:block;">Order PDF by:</label>
+      <label for="pro-order-by" style="margin-top:0.5rem;">Order PDF by:</label>
       <select id="pro-order-by" style="max-width:220px;">
         <option value="swimmer" selected>Swimmer (default)</option>
         <option value="event">Event</option>
       </select>
 
-      <button id="pro-preview-team" style="margin-top:0.7rem;">Preview Combined Events</button>
-      <button id="pro-download-team-pdf" style="margin-top:0.7rem; margin-left:0;">Download Team Schedule PDF</button>
-
+      <div class="row" style="margin-top:0.6rem;">
+        <div><button id="pro-preview-team">Preview Combined Events</button></div>
+        <div><button id="pro-download-team-pdf">Download Team Schedule PDF</button></div>
+      </div>
       <p class="muted" style="margin-top:0.4rem;">Tip: hold Ctrl (Windows) to pick more than one.</p>
 
       <div id="pro-preview-box" style="margin-top:1rem; background:#f4f7ff; padding:0.75rem; border-radius:6px; display:none;">
-        <h4 style="margin-top:0; margin-bottom:0.5rem;">Combined Event Preview</h4>
-        <div id="pro-preview-content" style="max-height:220px; overflow-y:auto;"></div>
+        <h4 style="margin:0 0 .5rem 0;">Combined Event Preview</h4>
+        <div id="pro-preview-content" style="max-height:260px; overflow-y:auto;"></div>
       </div>
     </div>
 
-  </div> <!-- end app-content -->
+    <!-- Family Timeline (RESTORED) -->
+    <div id="timeline-card" class="card">
+      <h3>Family Timeline</h3>
+      <p class="muted">Enter the meet start time (format: <b>hh:mm AM/PM</b>), pick one or more swimmers, then build the timeline. You can later update using the current event/heat.</p>
 
-  <footer>
-    <div class="footer-top">
-      <div class="social-icons">
-        <a href="https://www.facebook.com/swimlakeshore" target="_blank" aria-label="Facebook">
-          <svg viewBox="0 0 24 24">
-            <path fill="currentColor" d="M22.7 0H1.3C.6 0 0 .6 0 1.3v21.3C0 23.4.6 24 1.3 24H12V14.7H9.3v-3.6H12V8.4c0-2.7 1.6-4.2 4-4.2 1.1 0 2 .1 2.3.1v2.7h-1.6c-1.2 0-1.4.6-1.4 1.4v1.8h2.8l-.4 3.6h-2.4V24h4.8c.7 0 1.3-.6 1.3-1.3V1.3C24 .6 23.4 0 22.7 0z"/>
-          </svg>
-        </a>
+      <div class="row">
+        <div>
+          <label for="timeline-start">Meet start time</label>
+          <input id="timeline-start" type="text" placeholder="e.g. 12:00 PM" />
+        </div>
+        <div>
+          <label for="timeline-swimmers">Swimmers for timeline</label>
+          <select id="timeline-swimmers" multiple size="6"></select>
+        </div>
       </div>
-      <p>
-        <svg class="globe-icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm7.94 9h-3.14c-.05-1.86-.34-3.57-.83-5.02A8.03 8.03 0 0 1 19.94 11zM12 4c.74 0 1.45.1 2.13.3.46 1.34.75 3.02.81 4.7H9.06c.06-1.68.35-3.36.81-4.7A8 8 0 0 1 12 4zM4.06 13h3.14c.05 1.86.34 3.57.83 5.02A8.03 8.03 0 0 1 4.06 13zm3.14-2H4.06a8.03 8.03 0 0 1 3.97-5.02A18.1 18.1 0 0 0 7.2 11zm1.86 2h5.88c-.06 1.68-.35 3.36-.81 4.7A8 8 0 0 1 12 20a8 8 0 0 1-2.13-.3c-.46-1.34-.75-3.02-.81-4.7zM14.8 11H9.2c.05-1.68.33-3.36.79-4.7.43-.13.88-.2 1.33-.2s.9.07 1.33.2c.46 1.34.74 3.02.79 4.7zm.26 2c-.05 1.68-.33 3.36-.79 4.7.43.13.88.2 1.33.2s.9-.07 1.33-.2c.46-1.34.74-3.02.79-4.7h-2.66zm1.8 5.02c.49-1.45.78-3.16.83-5.02h3.14a8.03 8.03 0 0 1-3.97 5.02z"/>
-        </svg>
-        Visit the lssc website at:
-        <a href="https://www.gomotionapp.com/team/lelssc/page/home" target="_blank">
-          www.gomotionapp.com/team/lelssc/page/home
-        </a>
-      </p>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="notify-toggle" />
+        <label for="notify-toggle" style="font-weight:normal;">Notify me 15 minutes before each event</label>
+      </div>
+
+      <div class="row" style="margin-top:.6rem;">
+        <div><button id="timeline-build-btn">Build Timeline</button></div>
+        <div>
+          <button id="timeline-clear-btn" style="background:#777;">Clear timeline</button>
+        </div>
+      </div>
+
+      <div id="timeline-output" style="margin-top:0.8rem;"></div>
+
+      <h4 style="margin-top:1rem;">Update Timeline (current progress)</h4>
+      <div class="row">
+        <div>
+          <label for="timeline-current-event">Current Event #</label>
+          <select id="timeline-current-event"></select>
+        </div>
+        <div>
+          <label for="timeline-current-heat">Current Heat #</label>
+          <select id="timeline-current-heat"></select>
+        </div>
+      </div>
+      <button id="timeline-apply-btn" style="margin-top:0.6rem;">Apply update</button>
+      <div id="timeline-status" class="muted" style="margin-top:0.5rem;"></div>
     </div>
-    <div class="created-by">
-      <p>Created by: <strong>Joe Hammond</strong></p>
+
+    <!-- Crowd Assist -->
+    <div id="crowd-card" class="card">
+      <h3>Crowd Assist (optional)</h3>
+      <p class="muted">Share meet progress with other parents using a short meet code. Updates are opt-in per parent.</p>
+      <div class="row">
+        <div><label for="crowd-meet-code">Meet Code</label><input id="crowd-meet-code" type="text" placeholder="e.g. LSSC-NOV02" /></div>
+        <div><label for="crowd-display-name">Your name</label><input id="crowd-display-name" type="text" placeholder="e.g. Joe" /></div>
+      </div>
+      <div class="row" style="align-items:flex-end;">
+        <div><label for="crowd-event-number">Current Event #</label><input id="crowd-event-number" type="number" min="1" /></div>
+        <div><label for="crowd-heat-number">Current Heat #</label><input id="crowd-heat-number" type="number" min="1" /></div>
+        <div><button id="crowd-announce-btn">Announce to parents</button></div>
+      </div>
+      <div id="crowd-status" class="muted" style="margin-top:0.5rem;"></div>
+      <div id="crowd-incoming" class="card" style="display:none; background:#f6fbff; border:1px dashed #a7c9ff; margin-top:0.75rem;">
+        <div id="crowd-incoming-text" style="margin-bottom:0.5rem;"></div>
+        <button id="crowd-apply-btn">Apply to my timeline</button>
+        <button id="crowd-dismiss-btn" style="margin-left:0.5rem; background:#777;">Dismiss</button>
+      </div>
     </div>
+  </div>
+
+  <footer class="muted" style="text-align:center; margin-top:1.2rem;">
+    <p>Visit: <a href="https://www.gomotionapp.com/team/lelssc/page/home" target="_blank">www.gomotionapp.com/team/lelssc/page/home</a></p>
   </footer>
 
   <script>
-    // ===== PIN LOGIC =====
+    // ---------- PIN ----------
     const pinCard = document.getElementById("pin-card");
     const appContent = document.getElementById("app-content");
     const pinInput = document.getElementById("pin-input");
@@ -248,549 +201,507 @@
     const pinError = document.getElementById("pin-error");
 
     if (localStorage.getItem("lssc-pin-ok") === "yes") {
-      pinCard.style.display = "none";
-      appContent.style.display = "block";
+      pinCard.style.display = "none"; appContent.style.display = "block";
     }
-
     pinBtn.addEventListener("click", async () => {
-      const pin = pinInput.value.trim();
-      if (!pin) return;
-      const formData = new FormData();
-      formData.append("pin", pin);
+      const pin = pinInput.value.trim(); if (!pin) return;
+      const fd = new FormData(); fd.append("pin", pin);
       try {
-        const res = await fetch("/auth", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("bad pin");
-        localStorage.setItem("lssc-pin-ok", "yes");
-        pinCard.style.display = "none";
-        appContent.style.display = "block";
-        pinError.style.display = "none";
-      } catch (err) {
-        pinError.style.display = "block";
-      }
+        const r = await fetch("/auth", { method:"POST", body:fd });
+        if (!r.ok) throw 0;
+        localStorage.setItem("lssc-pin-ok","yes");
+        pinCard.style.display="none"; appContent.style.display="block"; pinError.style.display="none";
+      } catch { pinError.style.display="block"; }
     });
 
-    // ===== ELEMENTS =====
-    const fileInput = document.getElementById("file");
-    const statusEl = document.getElementById("status");
+    // ---------- Premium Unlock ----------
+    const premiumCard = document.getElementById("premium-card");
+    const premiumFeatures = document.getElementById("premium-features");
+    const premiumInput = document.getElementById("premium-input");
+    const premiumBtn = document.getElementById("premium-btn");
+    const premiumStatus = document.getElementById("premium-status");
     const freeSection = document.getElementById("free-section");
+    function showProUI(){ premiumFeatures.style.display="block"; premiumCard.style.display="none"; if (freeSection) freeSection.style.display="none"; }
+    if (localStorage.getItem("lssc-premium-ok")==="yes") showProUI();
+    premiumBtn.addEventListener("click", async () => {
+      const code = premiumInput.value.trim(); if (!code) return;
+      const fd = new FormData(); fd.append("code", code);
+      try{
+        const r = await fetch("/premium-auth",{method:"POST", body:fd}); if(!r.ok) throw 0;
+        localStorage.setItem("lssc-premium-ok","yes"); premiumStatus.style.display="none"; showProUI();
+      }catch{ premiumStatus.textContent="Invalid premium code."; premiumStatus.style.display="block"; }
+    });
+
+    // ---------- Common refs ----------
+    const statusEl = document.getElementById("status");
+    const fileInput = document.getElementById("file");
+    const fileNeededNote = document.getElementById("file-needed-note");
     const swimmerSelect = document.getElementById("swimmerSelect");
     const previewBox = document.getElementById("previewBox");
     const previewContent = document.getElementById("previewContent");
     const resultsBox = document.getElementById("resultsBox");
     const resultsContent = document.getElementById("resultsContent");
-    const submitBtn = document.getElementById("submitBtn");
     const downloadResultsBtn = document.getElementById("downloadResultsBtn");
-
-    // premium elements
-    const premiumCard = document.getElementById("premium-card");
-    const premiumInput = document.getElementById("premium-input");
-    const premiumBtn = document.getElementById("premium-btn");
-    const premiumStatus = document.getElementById("premium-status");
-    const premiumFeatures = document.getElementById("premium-features");
-
-    // pro elements
-    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
-    const proMulti = document.getElementById("pro-multi-swimmers");
-    const proPreviewBtn = document.getElementById("pro-preview-team");
-    const proPreviewBox = document.getElementById("pro-preview-box");
-    const proPreviewContent = document.getElementById("pro-preview-content");
-    const proOrderBy = document.getElementById("pro-order-by");
+    const btn = document.getElementById("submitBtn");
 
     let currentEvents = [];
     let currentSwimmerName = "";
     let currentSwimmerList = [];
+    let allEvents = []; // NEW: full meet events for timeline
 
-    // start pro buttons disabled
-    if (proPreviewBtn) proPreviewBtn.disabled = true;
-    if (proDownloadBtn) proDownloadBtn.disabled = true;
+    function storageKeyFor(sw){ return "lssc-results-"+sw.toLowerCase().replace(/\s+/g,"_"); }
+    function loadResults(sw){ const raw = localStorage.getItem(storageKeyFor(sw)); if(!raw) return {}; try{ return JSON.parse(raw);}catch{return{}} }
+    function saveResults(sw,obj){ localStorage.setItem(storageKeyFor(sw), JSON.stringify(obj)); }
 
-    // ===== helper: hide free card =====
-    function hideFreeCard() {
-      if (freeSection) freeSection.style.display = "none";
-    }
-
-    // ===== PREMIUM AUTO-SHOW =====
-    if (localStorage.getItem("lssc-premium-ok") === "yes") {
-      if (premiumFeatures) premiumFeatures.style.display = "block";
-      if (premiumCard) premiumCard.style.display = "none";
-      hideFreeCard();
-
-      // show note if no file yet
-      if (!fileInput || fileInput.files.length === 0) {
-        premiumFeatures.insertAdjacentHTML("beforeend", `
-          <div class="pro-upload-note" style="margin-top:1rem; padding:0.75rem; background:#fff6e6; border:1px solid #ffd580; border-radius:6px;">
-            <strong>Note:</strong> Please upload a heat sheet file first to enable Pro features.
-          </div>
-        `);
-      }
-    }
-
-    // ===== PREMIUM UNLOCK CLICK =====
-    premiumBtn.addEventListener("click", async () => {
-      const code = premiumInput.value.trim();
-      if (!code) return;
-      const fd = new FormData();
-      fd.append("code", code);
-      try {
-        const res = await fetch("/premium-auth", { method: "POST", body: fd });
-        if (!res.ok) throw new Error("bad code");
-        await res.json();
-        localStorage.setItem("lssc-premium-ok", "yes");
-        premiumStatus.style.display = "none";
-        if (premiumFeatures) premiumFeatures.style.display = "block";
-        if (premiumCard) premiumCard.style.display = "none";
-        hideFreeCard();
-
-        if (!fileInput || fileInput.files.length === 0) {
-          premiumFeatures.insertAdjacentHTML("beforeend", `
-            <div class="pro-upload-note" style="margin-top:1rem; padding:0.75rem; background:#fff6e6; border:1px solid #ffd580; border-radius:6px;">
-              <strong>Note:</strong> Please upload a heat sheet file first to enable Pro features.
-            </div>
-          `);
-        }
-      } catch (err) {
-        premiumStatus.textContent = "Invalid premium code.";
-        premiumStatus.style.display = "block";
-      }
-    });
-
-    // ===== STORAGE HELPERS =====
-    function storageKeyFor(swimmer) {
-      return "lssc-results-" + swimmer.toLowerCase().replace(/\s+/g, "_");
-    }
-    function loadResultsFromStorage(swimmer) {
-      if (!swimmer) return {};
-      const key = storageKeyFor(swimmer);
-      const raw = localStorage.getItem(key);
-      if (!raw) return {};
-      try { return JSON.parse(raw); } catch { return {}; }
-    }
-    function saveResultsToStorage(swimmer, obj) {
-      if (!swimmer) return;
-      const key = storageKeyFor(swimmer);
-      localStorage.setItem(key, JSON.stringify(obj));
-    }
-
-    // ===== FILE CHANGE: LOAD SWIMMERS =====
+    // ---------- Upload → load swimmers and all events ----------
     fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      statusEl.textContent = "Reading heat sheet and finding swimmers...";
-      if (swimmerSelect) swimmerSelect.innerHTML = '<option value="">Loading...</option>';
-      if (previewBox) previewBox.style.display = "none";
-      if (resultsBox) resultsBox.style.display = "none";
-      if (previewContent) previewContent.innerHTML = "";
-      if (resultsContent) resultsContent.innerHTML = "";
+      const file = fileInput.files[0]; if(!file) return;
+      if (fileNeededNote) fileNeededNote.style.display="none";
+      statusEl.textContent="Reading heat sheet…";
+      previewBox.style.display="none"; resultsBox.style.display="none"; previewContent.innerHTML=""; resultsContent.innerHTML="";
 
-      const formData = new FormData();
-      formData.append("file", file);
-
+      // swimmers
+      const fd = new FormData(); fd.append("file", file);
       try {
-        const res = await fetch("/list-swimmers", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("Error loading swimmers");
+        const res = await fetch("/list-swimmers",{method:"POST", body:fd});
+        if (!res.ok) throw 0;
         const data = await res.json();
-        const swimmers = data.swimmers || [];
+        currentSwimmerList = data.swimmers || [];
+        swimmerSelect.innerHTML = "";
+        currentSwimmerList.forEach(n => { const o=document.createElement("option"); o.value=n; o.textContent=n; swimmerSelect.appendChild(o); });
 
-        if (swimmerSelect) {
-          swimmerSelect.innerHTML = "";
-          swimmers.forEach(name => {
-            const opt = document.createElement("option");
-            opt.value = name;
-            opt.textContent = name;
-            swimmerSelect.appendChild(opt);
-          });
-        }
-
-        currentSwimmerList = swimmers;
-
-        // fill pro multi-select
+        // fill pro + timeline selects
+        const proMulti = document.getElementById("pro-multi-swimmers");
         if (proMulti) {
           proMulti.innerHTML = "";
-          currentSwimmerList.forEach(name => {
-            const opt = document.createElement("option");
-            opt.value = name;
-            opt.textContent = name;
-            proMulti.appendChild(opt);
-          });
+          currentSwimmerList.forEach(n => { const o=document.createElement("option"); o.value=n; o.textContent=n; proMulti.appendChild(o); });
         }
+        const tlMulti = document.getElementById("timeline-swimmers");
+        tlMulti.innerHTML = "";
+        currentSwimmerList.forEach(n => { const o=document.createElement("option"); o.value=n; o.textContent=n; tlMulti.appendChild(o); });
 
-        // enable pro buttons
-        if (proPreviewBtn) proPreviewBtn.disabled = false;
-        if (proDownloadBtn) proDownloadBtn.disabled = false;
+        statusEl.textContent="Swimmers loaded. Loading full meet…";
 
-        // remove "upload first" note
-        const note = document.querySelector("#premium-features .pro-upload-note");
-        if (note) note.remove();
+        // all events (for timeline/event dropdowns)
+        const fd2 = new FormData(); fd2.append("file", file);
+        const res2 = await fetch("/extract-all-events",{method:"POST", body:fd2});
+        if (!res2.ok) throw 0;
+        const data2 = await res2.json();
+        allEvents = data2.events || [];
+        statusEl.textContent="Ready. Pick a swimmer or build a family timeline.";
 
-        statusEl.textContent = "Swimmers loaded. Pick one to preview.";
-      } catch (err) {
-        statusEl.textContent = "Error reading swimmers from PDF.";
-        if (swimmerSelect) swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
+        // populate current event/heat dropdowns
+        buildEventHeatDropdowns();
+
+      } catch {
+        statusEl.textContent="Error reading heat sheet.";
+        swimmerSelect.innerHTML='<option value="">-- Error --</option>';
       }
     });
 
-    // ===== SWIMMER CHANGE =====
-    if (swimmerSelect) {
-      swimmerSelect.addEventListener("change", async () => {
-        const file = fileInput.files[0];
-        const swimmerName = swimmerSelect.value;
-        if (!file || !swimmerName) return;
-        currentSwimmerName = swimmerName;
-        statusEl.textContent = "Loading events for " + swimmerName + "...";
-        const formData = new FormData();
-        formData.append("swimmer_name", swimmerName);
-        formData.append("file", file);
-        try {
-          const res = await fetch("/extract", { method: "POST", body: formData });
-          if (!res.ok) throw new Error("Error loading events");
-          const data = await res.json();
-          const events = data.events || [];
-          currentEvents = events;
-          if (previewBox) previewBox.style.display = "block";
-          if (previewContent) previewContent.innerHTML = "";
-          if (resultsBox) resultsBox.style.display = "none";
-          if (resultsContent) resultsContent.innerHTML = "";
+    // ---------- Free preview ----------
+    swimmerSelect.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      const swimmerName = swimmerSelect.value;
+      if (!file || !swimmerName) return;
+      currentSwimmerName = swimmerName;
+      statusEl.textContent = "Loading events for " + swimmerName + "…";
+      const fd = new FormData(); fd.append("swimmer_name", swimmerName); fd.append("file", file);
+      try {
+        const r = await fetch("/extract",{method:"POST", body:fd}); if(!r.ok) throw 0;
+        const data = await r.json();
+        currentEvents = data.events || [];
+        previewBox.style.display = "block";
+        previewContent.innerHTML = ""; resultsBox.style.display="none"; resultsContent.innerHTML="";
 
-          const saved = loadResultsFromStorage(swimmerName);
+        const saved = loadResults(swimmerName);
+        if (currentEvents.length===0){ previewContent.innerHTML='<p class="muted">No events found.</p>'; statusEl.textContent="No events."; return;}
+        currentEvents.forEach(ev=>{
+          const totalHeats = ev.total_heats ? ev.total_heats : "?";
+          const evId = `event-${ev.event_number}-${ev.heat}`;
+          const savedTime = saved[evId] || "";
+          const d = document.createElement("div"); d.className="event";
+          d.innerHTML = `
+            <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
+            <div>Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> | Lane: <b>${ev.lane ?? ""}</b> | Seed: <b>${ev.seed_time ?? ""}</b></div>
+            <div style="margin-top:0.4rem;">Final time: <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" /></div>`;
+          previewContent.appendChild(d);
+        });
+        statusEl.textContent="Preview ready. Enter times after races.";
+        renderResultsTable();
+      } catch { statusEl.textContent="Error loading swimmer events."; }
+    });
 
-          if (events.length === 0) {
-            if (previewContent) previewContent.innerHTML = '<p class="muted">No events found for this swimmer.</p>';
-            statusEl.textContent = "No events found.";
-            return;
-          }
-
-          events.forEach(ev => {
-            const totalHeats = ev.total_heats ? ev.total_heats : "?";
-            const evId = `event-${ev.event_number}-${ev.heat}`;
-            const savedTime = saved[evId] || "";
-            const div = document.createElement("div");
-            div.className = "event";
-            div.innerHTML = `
-              <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
-              <div>
-                Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> |
-                Lane: <b>${ev.lane ?? ""}</b> |
-                Seed: <b>${ev.seed_time ?? ""}</b>
-              </div>
-              <div style="margin-top:0.4rem;">
-                Final time (enter after race):
-                <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" />
-              </div>
-            `;
-            if (previewContent) previewContent.appendChild(div);
-          });
-
-          statusEl.textContent = "Preview ready. Enter times after each event.";
-          renderResultsTable();
-        } catch (err) {
-          statusEl.textContent = "Error loading swimmer events.";
-        }
-      });
-    }
-
-    // ===== save entered times =====
-    if (previewContent) {
-      previewContent.addEventListener("input", (e) => {
-        if (e.target && e.target.matches("input[data-event-id]")) {
-          const evId = e.target.getAttribute("data-event-id");
-          const val = e.target.value.trim();
-          const saved = loadResultsFromStorage(currentSwimmerName);
-          saved[evId] = val;
-          saveResultsToStorage(currentSwimmerName, saved);
-          renderResultsTable();
-        }
-      });
-    }
-
-    function timeToSeconds(t) {
-      if (!t) return null;
-      t = t.trim();
-      if (t.includes(":")) {
-        const parts = t.split(":");
-        if (parts.length === 2) {
-          const mins = parseInt(parts[0], 10);
-          const secs = parseFloat(parts[1]);
-          return mins * 60 + secs;
-        }
+    document.getElementById("previewContent").addEventListener("input",(e)=>{
+      if (e.target && e.target.matches("input[data-event-id]")){
+        const evId = e.target.getAttribute("data-event-id");
+        const val = e.target.value.trim();
+        const saved = loadResults(currentSwimmerName);
+        saved[evId] = val; saveResults(currentSwimmerName, saved); renderResultsTable();
       }
-      const num = parseFloat(t);
-      if (isNaN(num)) return null;
-      return num;
-    }
+    });
 
-    function renderResultsTable() {
-      if (!currentSwimmerName || currentEvents.length === 0) return;
-      const saved = loadResultsFromStorage(currentSwimmerName);
-      let hasAny = false;
-      let html = `<table class="results-table" style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-        <tr style="background:#eaf0ff;">
-          <th style="text-align:left;">Event</th>
-          <th>Seed</th>
-          <th>Final</th>
-          <th>Diff</th>
-        </tr>
-      `;
-      currentEvents.forEach(ev => {
-        const evId = `event-${ev.event_number}-${ev.heat}`;
-        const finalTime = saved[evId] || "";
-        const seedTime = ev.seed_time || "";
-        if (finalTime) hasAny = true;
-        let diffText = "";
-        if (seedTime && finalTime) {
-          const s = timeToSeconds(seedTime);
-          const f = timeToSeconds(finalTime);
-          if (s !== null && f !== null) {
-            const diff = f - s;
-            diffText = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "s";
-          }
-        }
-        html += `
-          <tr>
-            <td>#${ev.event_number} – ${ev.event_name}</td>
-            <td style="text-align:center;">${seedTime}</td>
-            <td style="text-align:center;">${finalTime}</td>
-            <td style="text-align:center;">${diffText}</td>
-          </tr>
-        `;
+    function t2s(t){ if(!t) return null; t=t.trim(); if(t.includes(":")){ const [m,s]=t.split(":"); return parseInt(m,10)*60+parseFloat(s);} const n=parseFloat(t); return isNaN(n)?null:n; }
+    function renderResultsTable(){
+      if (!currentSwimmerName || currentEvents.length===0) return;
+      const saved = loadResults(currentSwimmerName); let has=false;
+      let html = `<table class="results-table" style="width:100%; border-collapse:collapse;"><tr style="background:#eaf0ff;"><th style="text-align:left;">Event</th><th>Seed</th><th>Final</th><th>Diff</th></tr>`;
+      currentSwimmerName && currentEvents.forEach(ev=>{
+        const evId = `event-${ev.event_number}-${ev.heat}`; const finalT = saved[evId] || ""; const seedT = ev.seed_time || ""; if(finalT) has=true;
+        let diff=""; if(seedT && finalT){ const s=t2s(seedT), f=t2s(finalT); if(s!=null && f!=null){ const d=f-s; diff=(d>=0?"+":"")+d.toFixed(2)+"s";}}
+        html += `<tr><td>#${ev.event_number} – ${ev.event_name}</td><td style="text-align:center;">${seedT}</td><td style="text-align:center;">${finalT}</td><td style="text-align:center;">${diff}</td></tr>`;
       });
       html += `</table>`;
-
-      if (hasAny) {
-        if (resultsBox) resultsBox.style.display = "block";
-        if (resultsContent) resultsContent.innerHTML = html;
-      } else {
-        if (resultsBox) resultsBox.style.display = "none";
-        if (resultsContent) resultsContent.innerHTML = "";
-      }
+      if (has){ resultsBox.style.display="block"; resultsContent.innerHTML=html; } else { resultsBox.style.display="none"; resultsContent.innerHTML=""; }
     }
 
-    // ===== download results pdf =====
-    if (downloadResultsBtn) {
-      downloadResultsBtn.addEventListener("click", async () => {
-        if (!currentSwimmerName || currentEvents.length === 0) return;
-        const saved = loadResultsFromStorage(currentSwimmerName);
-        const payload = currentEvents.map(ev => {
-          const evId = `event-${ev.event_number}-${ev.heat}`;
-          return {
-            event_number: ev.event_number,
-            event_name: ev.event_name,
-            heat: ev.heat,
-            total_heats: ev.total_heats || null,
-            lane: ev.lane || null,
-            seed_time: ev.seed_time || "",
-            final_time: saved[evId] || ""
-          };
-        });
-        const formData = new FormData();
-        formData.append("swimmer_name", currentSwimmerName);
-        formData.append("results_json", JSON.stringify(payload));
-        try {
-          const res = await fetch("/generate-results-pdf", {
-            method: "POST",
-            body: formData
-          });
-          if (!res.ok) throw new Error("PDF failed");
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = currentSwimmerName.replace(/\s+/g, "_") + "_results.pdf";
-          a.click();
-        } catch (err) {
-          alert("Could not download results PDF.");
-        }
+    downloadResultsBtn.addEventListener("click", async ()=>{
+      if(!currentSwimmerName || currentEvents.length===0) return;
+      const saved = loadResults(currentSwimmerName);
+      const payload = currentEvents.map(ev=>{
+        const evId=`event-${ev.event_number}-${ev.heat}`;
+        return { event_number:ev.event_number, event_name:ev.event_name, heat:ev.heat, total_heats:ev.total_heats||null, lane:ev.lane||null, seed_time:ev.seed_time||"", final_time:saved[evId]||"" };
       });
-    }
+      const fd = new FormData(); fd.append("swimmer_name", currentSwimmerName); fd.append("results_json", JSON.stringify(payload));
+      try{ const r=await fetch("/generate-results-pdf",{method:"POST", body:fd}); if(!r.ok) throw 0;
+        const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=currentSwimmerName.replace(/\s+/g,"_")+"_results.pdf"; a.click();
+      } catch { alert("Could not download results PDF."); }
+    });
 
-    // ===== PRO PREVIEW =====
-    if (proPreviewBtn) {
-      proPreviewBtn.addEventListener("click", async () => {
-        const file = fileInput.files[0];
-        if (!file) {
-          alert("Upload a heat sheet PDF first.");
-          return;
-        }
-        if (!proMulti) return;
+    // ---------- Pro preview/PDF ----------
+    const proPreviewBtn = document.getElementById("pro-preview-team");
+    const proPreviewBox = document.getElementById("pro-preview-box");
+    const proPreviewContent = document.getElementById("pro-preview-content");
+    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
+    const proOrderBy = document.getElementById("pro-order-by");
+    const proMulti = document.getElementById("pro-multi-swimmers");
 
-        proPreviewBtn.disabled = true;
-        const originalText = proPreviewBtn.textContent;
-        proPreviewBtn.textContent = "Loading preview...";
+    function needFile(){ const f=fileInput.files[0]; if(!f){ if(fileNeededNote) fileNeededNote.style.display="block"; return null;} if(fileNeededNote) fileNeededNote.style.display="none"; return f; }
 
-        const selected = Array.from(proMulti.options)
-          .filter(opt => opt.selected)
-          .map(opt => opt.value);
-
-        if (selected.length === 0) {
-          alert("Select at least one swimmer.");
-          proPreviewBtn.disabled = false;
-          proPreviewBtn.textContent = originalText;
-          return;
-        }
-
-        const combined = [];
-        const fetches = selected.map(name => {
-          const fd = new FormData();
-          fd.append("swimmer_name", name);
-          fd.append("file", file);
-          return { name, fd };
+    if (proPreviewBtn){
+      proPreviewBtn.addEventListener("click", async ()=>{
+        const file = needFile(); if(!file || !proMulti) return;
+        const selected = Array.from(proMulti.options).filter(o=>o.selected).map(o=>o.value);
+        if(selected.length===0){ alert("Select at least one swimmer."); return;}
+        const fetches = selected.map(name=>{
+          const fd=new FormData(); fd.append("swimmer_name",name); fd.append("file",file);
+          return fetch("/extract",{method:"POST", body:fd}).then(r=>{if(!r.ok) throw 0; return r.json();}).then(d=>({name, events:d.events||[]}));
         });
-
-        try {
-          const results = await Promise.all(
-            fetches.map(item =>
-              fetch("/extract", { method: "POST", body: item.fd })
-                .then(res => {
-                  if (!res.ok) throw new Error("extract failed");
-                  return res.json().then(data => ({ name: item.name, events: data.events || [] }));
-                })
-            )
-          );
-
-          results.forEach(swObj => {
-            swObj.events.forEach(ev => {
-              combined.push({
-                swimmer: swObj.name,
-                event_number: ev.event_number,
-                event_name: ev.event_name,
-                heat: ev.heat,
-                total_heats: ev.total_heats,
-                lane: ev.lane,
-                seed_time: ev.seed_time
-              });
-            });
-          });
-
+        try{
+          const res = await Promise.all(fetches);
+          const combined=[];
+          res.forEach(sw=> sw.events.forEach(ev=> combined.push({swimmer:sw.name, ...ev})));
           const order = proOrderBy ? proOrderBy.value : "swimmer";
-          if (order === "event") {
-            combined.sort((a, b) => {
-              if (a.event_number !== b.event_number) return a.event_number - b.event_number;
-              const ah = a.heat || 0;
-              const bh = b.heat || 0;
-              if (ah !== bh) return ah - bh;
-              return a.swimmer.localeCompare(b.swimmer);
-            });
-          } else {
-            combined.sort((a, b) => {
-              const s = a.swimmer.localeCompare(b.swimmer);
-              if (s !== 0) return s;
-              if (a.event_number !== b.event_number) return a.event_number - b.event_number;
-              const ah = a.heat || 0;
-              const bh = b.heat || 0;
-              return ah - bh;
-            });
-          }
-
-          if (combined.length === 0) {
-            proPreviewContent.innerHTML = '<p class="muted">No events found for selected swimmers.</p>';
-          } else {
-            let html = "";
-            combined.forEach(item => {
-              const totalHeats = item.total_heats ? ` of ${item.total_heats}` : "";
-              html += `
-                <div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
-                  <div style="font-weight:bold;">${item.swimmer}</div>
-                  <div>Event #${item.event_number} – ${item.event_name}</div>
-                  <div style="font-size:0.8rem; color:#444;">
-                    Heat: ${item.heat}${totalHeats} |
-                    Lane: ${item.lane ?? ""} |
-                    Seed: ${item.seed_time ?? ""}
-                  </div>
-                </div>
-              `;
+          if(order==="event"){ combined.sort((a,b)=> (a.event_number-b.event_number)||((a.heat||0)-(b.heat||0))||a.swimmer.localeCompare(b.swimmer)); }
+          else { combined.sort((a,b)=> a.swimmer.localeCompare(b.swimmer)||(a.event_number-b.event_number)||((a.heat||0)-(b.heat||0))); }
+          if(combined.length===0){ proPreviewContent.innerHTML='<p class="muted">No events found for selected swimmers.</p>'; }
+          else {
+            let html=""; combined.forEach(it=>{
+              const th = it.total_heats ? ` of ${it.total_heats}` : "";
+              html += `<div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
+                <div style="font-weight:bold;">${it.swimmer}</div>
+                <div>Event #${it.event_number} – ${it.event_name}</div>
+                <div style="font-size:.88rem; color:#444;">Heat: ${it.heat}${th} | Lane: ${it.lane??""} | Seed: ${it.seed_time??""}</div>
+              </div>`;
             });
             proPreviewContent.innerHTML = html;
           }
-
-          proPreviewBox.style.display = "block";
-        } catch (err) {
-          alert("Could not load combined preview.");
-        }
-
-        proPreviewBtn.disabled = false;
-        proPreviewBtn.textContent = originalText;
+          proPreviewBox.style.display="block";
+        } catch { alert("Could not load combined preview."); }
       });
     }
 
-    // ===== PRO DOWNLOAD =====
-    if (proDownloadBtn) {
-      proDownloadBtn.addEventListener("click", async () => {
-        const file = fileInput.files[0];
-        if (!file) {
-          alert("Upload a heat sheet PDF first.");
-          return;
+    if (proDownloadBtn){
+      proDownloadBtn.addEventListener("click", async ()=>{
+        const file = needFile(); if(!file || !proMulti) return;
+        const selected = Array.from(proMulti.options).filter(o=>o.selected).map(o=>o.value);
+        if(selected.length===0){ alert("Select at least one swimmer."); return;}
+        const fd = new FormData(); fd.append("file", file); fd.append("swimmers_json", JSON.stringify(selected));
+        const order = proOrderBy ? proOrderBy.value : "swimmer"; fd.append("order_by", order);
+        try{ const r=await fetch("/generate-team-pdf",{method:"POST", body:fd}); if(!r.ok) throw 0;
+          const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="team_schedule.pdf"; a.click();
+        }catch{ alert("Could not download team PDF."); }
+      });
+    }
+
+    // ---------- Family Timeline ----------
+    const tlStart = document.getElementById("timeline-start");
+    const tlSwimmers = document.getElementById("timeline-swimmers");
+    const tlBuildBtn = document.getElementById("timeline-build-btn");
+    const tlClearBtn = document.getElementById("timeline-clear-btn");
+    const tlOut = document.getElementById("timeline-output");
+    const tlStatus = document.getElementById("timeline-status");
+    const tlCurEvent = document.getElementById("timeline-current-event");
+    const tlCurHeat  = document.getElementById("timeline-current-heat");
+    const notifyToggle = document.getElementById("notify-toggle");
+
+    let baselineOffsetMs = 0;     // re-baseline adjustment based on current event/heat
+    let scheduledTimers = [];     // notifications
+
+    function parseAmPm(str){
+      // Accept "hh:mm AM/PM" or "hh:mm" (assume AM/PM if included)
+      if(!str) return null;
+      const s = str.trim().toUpperCase();
+      const m = s.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/);
+      if(!m) return null;
+      let hh = parseInt(m[1],10), mm = parseInt(m[2],10); const ap = m[3];
+      if (hh<1 || hh>12 || mm<0 || mm>59) return null;
+      // Anchor to today
+      const d = new Date(); d.setSeconds(0,0);
+      if (ap==="AM" || ap==="PM"){
+        if (ap==="PM" && hh!==12) hh+=12;
+        if (ap==="AM" && hh===12) hh=0;
+      } else {
+        // If no AM/PM, leave 12-hr as-is; assume AM for <=11, treat 12 as noon
+        if (hh===12) hh=12; // noon
+      }
+      d.setHours(hh, mm, 0, 0);
+      return d;
+    }
+
+    function secsFromSeed(seed){
+      if(!seed) return 0;
+      if(seed.includes(":")){ const [m,rest]=seed.split(":"); return parseInt(m,10)*60 + parseFloat(rest); }
+      const f = parseFloat(seed); return isNaN(f)?0:f;
+    }
+
+    function buildEventHeatDropdowns(){
+      // fill tlCurEvent and tlCurHeat from allEvents
+      const events = [...new Set(allEvents.map(e=>e.event_number))].sort((a,b)=>a-b);
+      tlCurEvent.innerHTML = ""; events.forEach(ev=>{ const o=document.createElement("option"); o.value=String(ev); o.textContent=String(ev); tlCurEvent.appendChild(o); });
+      tlCurEvent.addEventListener("change", ()=>{
+        const evNum = parseInt(tlCurEvent.value,10);
+        const heats = allEvents.filter(e=>e.event_number===evNum).map(e=>e.heat);
+        const maxHeat = Math.max(...heats);
+        tlCurHeat.innerHTML = ""; for(let h=1; h<=maxHeat; h++){ const o=document.createElement("option"); o.value=String(h); o.textContent=String(h); tlCurHeat.appendChild(o); }
+      });
+      // trigger once
+      if (events.length){ tlCurEvent.dispatchEvent(new Event("change")); }
+    }
+
+    function computeHeatSchedule(startDate){
+      // returns Map key "ev|heat" -> Date
+      const map = new Map();
+      if (!allEvents.length) return map;
+
+      // For each (event,heat), we need a "first available seed time" in that heat.
+      // We'll just take the first line encountered for that (event,heat).
+      const byEvHeat = {};
+      allEvents.forEach(row=>{
+        const k = row.event_number+"|"+row.heat;
+        if (!byEvHeat[k]) byEvHeat[k] = row; // first encountered
+      });
+
+      // Build ordered unique heats across meet
+      const keys = Object.keys(byEvHeat)
+        .map(k=>{
+          const [e,h]=k.split("|").map(x=>parseInt(x,10));
+          return {e,h,key:k};
+        })
+        .sort((a,b)=> (a.e-b.e) || (a.h-b.h));
+
+      let cursor = new Date(startDate.getTime()); // running clock
+      let lastEvent = null;
+
+      keys.forEach(item=>{
+        const {e,h,key} = item;
+        if (lastEvent !== null){
+          // gap between heats / events
+          if (e !== lastEvent) cursor = new Date(cursor.getTime() + 1000*60); // 60s between events
+          else cursor = new Date(cursor.getTime() + 1000*20);                 // 20s between heats
         }
-        if (!proMulti) return;
+        // Heat duration = first available seed time in that heat
+        const seed = byEvHeat[key].seed_time;
+        const durSec = Math.max( secsFromSeed(seed), 20 ); // floor to 20s to avoid 0s
+        // mark start time for this heat
+        map.set(key, new Date(cursor.getTime()));
+        // advance cursor by heat duration (so next heat starts after this one)
+        cursor = new Date(cursor.getTime() + durSec*1000);
+        lastEvent = e;
+      });
 
-        const selected = Array.from(proMulti.options)
-          .filter(opt => opt.selected)
-          .map(opt => opt.value);
+      return map;
+    }
 
-        if (selected.length === 0) {
-          alert("Select at least one swimmer.");
-          return;
-        }
+    function clearTimers(){
+      scheduledTimers.forEach(t=>clearTimeout(t));
+      scheduledTimers = [];
+    }
 
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("swimmers_json", JSON.stringify(selected));
-        const order = proOrderBy ? proOrderBy.value : "swimmer";
-        fd.append("order_by", order);
+    function scheduleNotifications(rows){
+      if (!notifyToggle.checked) return;
+      if (!("Notification" in window)) return;
+      Notification.requestPermission().then(perm=>{
+        if (perm!=="granted") return;
+        rows.forEach(r=>{
+          const msUntil = r.time.getTime() - Date.now() - (15*60*1000);
+          if (msUntil <= 0) return;
+          const id = setTimeout(()=>{
+            new Notification("Event reminder", { body: `${r.swimmer}: ${r.label} in ~15 minutes` });
+          }, msUntil);
+          scheduledTimers.push(id);
+        });
+      });
+    }
 
-        try {
-          const res = await fetch("/generate-team-pdf", {
-            method: "POST",
-            body: fd
+    function renderTimeline(startDate){
+      // selected swimmers
+      const selected = Array.from(tlSwimmers.options).filter(o=>o.selected).map(o=>o.value);
+      if (!selected.length){ tlOut.innerHTML='<p class="warn">Select at least one swimmer for the timeline.</p>'; return; }
+
+      const heatMap = computeHeatSchedule(startDate);
+      if (heatMap.size===0){ tlOut.innerHTML='<p class="warn">Could not compute timeline from this heat sheet.</p>'; return; }
+
+      // build rows (each selected swimmer’s entries with times)
+      const rows = [];
+      selected.forEach(name=>{
+        const mine = allEvents.filter(e=> e.swimmer_name && e.swimmer_name.toLowerCase().includes(name.toLowerCase()));
+        mine.forEach(ev=>{
+          const k = ev.event_number+"|"+ev.heat;
+          const base = heatMap.get(k);
+          if (!base) return;
+          // apply baselineOffsetMs only to this and later heats
+          const adjusted = new Date(base.getTime() + baselineOffsetMs);
+          rows.push({
+            swimmer: name,
+            time: adjusted,
+            label: `Event #${ev.event_number} – ${ev.event_name} (Heat ${ev.heat}${ev.total_heats?(" of "+ev.total_heats):""})`
           });
-          if (!res.ok) throw new Error("PDF failed");
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "team_schedule.pdf";
-          a.click();
-        } catch (err) {
-          alert("Could not download team PDF.");
-        }
+        });
       });
+
+      rows.sort((a,b)=> a.time - b.time || a.swimmer.localeCompare(b.swimmer));
+
+      if (!rows.length){ tlOut.innerHTML='<p class="muted">No timeline rows for the selected swimmers.</p>'; return; }
+
+      let html = `<table class="timeline"><thead><tr><th>Time</th><th>Swimmer</th><th>Event</th></tr></thead><tbody>`;
+      rows.forEach(r=>{
+        const t = r.time.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+        html += `<tr><td>${t}</td><td>${r.swimmer}</td><td>${r.label}</td></tr>`;
+      });
+      html += `</tbody></table>`;
+      tlOut.innerHTML = html;
+
+      clearTimers();
+      scheduleNotifications(rows);
     }
 
-    // ===== FREE: download schedule pdf =====
-    submitBtn.addEventListener("click", async () => {
-      const file = fileInput.files[0];
-      const swimmerName = swimmerSelect ? swimmerSelect.value : "";
-      if (!file || !swimmerName) {
-        statusEl.textContent = "Please upload a file and select a swimmer.";
-        return;
-      }
-      submitBtn.disabled = true;
-      submitBtn.classList.remove("success");
-      submitBtn.textContent = "Generating...";
-      const formData = new FormData();
-      formData.append("swimmer_name", swimmerName);
-      formData.append("file", file);
-      try {
-        const res = await fetch("/generate-pdf", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("PDF generation failed");
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
-        a.click();
-        submitBtn.classList.add("success");
-        submitBtn.textContent = "Schedule Ready ✓";
-        statusEl.textContent = "PDF downloaded successfully.";
-        setTimeout(() => {
-          submitBtn.classList.remove("success");
-          submitBtn.textContent = "Generate Schedule";
-        }, 3000);
-      } catch (err) {
-        statusEl.textContent = "Error generating PDF.";
-      } finally {
-        submitBtn.disabled = false;
-      }
+    tlBuildBtn.addEventListener("click", ()=>{
+      const s = parseAmPm(tlStart.value);
+      if(!s){ tlStatus.textContent="Enter a start time like 12:00 PM"; return; }
+      tlStatus.textContent="";
+      baselineOffsetMs = 0; // reset baseline whenever rebuilding
+      renderTimeline(s);
     });
 
+    tlClearBtn.addEventListener("click", ()=>{
+      tlOut.innerHTML = ""; baselineOffsetMs=0; clearTimers(); tlStatus.textContent="Timeline cleared.";
+    });
+
+    // Update timeline (re-baseline)
+    document.getElementById("timeline-apply-btn").addEventListener("click", ()=>{
+      const s = parseAmPm(tlStart.value);
+      if(!s){ tlStatus.textContent="Enter a start time like 12:00 PM"; return; }
+
+      const evNum = parseInt(tlCurEvent.value||"0", 10);
+      const htNum = parseInt(tlCurHeat.value||"0", 10);
+      if (!evNum || !htNum){ tlStatus.textContent="Pick current event and heat."; return; }
+
+      const heatMap = computeHeatSchedule(s);
+      const key = evNum+"|"+htNum;
+      const scheduled = heatMap.get(key);
+      if (!scheduled){ tlStatus.textContent="That event/heat not found in the heat sheet."; return; }
+
+      const now = new Date();
+      // new baseline makes this heat start "now"
+      baselineOffsetMs = now.getTime() - scheduled.getTime();
+
+      tlStatus.textContent = `Updated: aligned Event ${evNum} Heat ${htNum} to current time.`;
+      renderTimeline(s);
+    });
+
+    // ---------- Crowd Assist ----------
+    const crowdMeetCode = document.getElementById("crowd-meet-code");
+    const crowdDisplayName = document.getElementById("crowd-display-name");
+    const crowdEventNumber = document.getElementById("crowd-event-number");
+    const crowdHeatNumber = document.getElementById("crowd-heat-number");
+    const crowdAnnounceBtn = document.getElementById("crowd-announce-btn");
+    const crowdStatus = document.getElementById("crowd-status");
+    const crowdIncoming = document.getElementById("crowd-incoming");
+    const crowdIncomingText = document.getElementById("crowd-incoming-text");
+    const crowdApplyBtn = document.getElementById("crowd-apply-btn");
+    const crowdDismissBtn = document.getElementById("crowd-dismiss-btn");
+
+    const CROWD_PREFS_KEY = "lssc-crowd-prefs";
+    let crowdLastSeen = 0; let crowdPollTimer=null;
+
+    function saveCrowdPrefs(){ localStorage.setItem(CROWD_PREFS_KEY, JSON.stringify({ meet_code:(crowdMeetCode.value||"").trim(), display_name:(crowdDisplayName.value||"").trim() })); }
+    function loadCrowdPrefs(){ try{ const raw=localStorage.getItem(CROWD_PREFS_KEY); if(!raw) return; const p=JSON.parse(raw); if(p.meet_code) crowdMeetCode.value=p.meet_code; if(p.display_name) crowdDisplayName.value=p.display_name; }catch{} }
+    loadCrowdPrefs(); crowdMeetCode.addEventListener("input",saveCrowdPrefs); crowdDisplayName.addEventListener("input",saveCrowdPrefs);
+
+    if (crowdAnnounceBtn){
+      crowdAnnounceBtn.addEventListener("click", async ()=>{
+        const meet=(crowdMeetCode.value||"").trim().toUpperCase();
+        const name=(crowdDisplayName.value||"").trim();
+        const ev=parseInt((crowdEventNumber.value||"0"),10);
+        const ht=parseInt((crowdHeatNumber.value||"0"),10);
+        if(!meet||!name||!ev||!ht){ crowdStatus.textContent="Enter meet code, your name, current event and heat."; return; }
+        try{
+          const r=await fetch("/crowd/broadcast",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({meet_code:meet, display_name:name, event_number:ev, heat_number:ht})});
+          if(!r.ok) throw 0;
+          crowdStatus.textContent="Announced to parents in this meet code.";
+        }catch{ crowdStatus.textContent="Could not broadcast update."; }
+      });
+    }
+
+    function startCrowdPolling(){
+      if (crowdPollTimer) clearInterval(crowdPollTimer);
+      crowdPollTimer = setInterval(async ()=>{
+        const meet=(crowdMeetCode.value||"").trim().toUpperCase(); if(!meet) return;
+        try{
+          const r=await fetch(`/crowd/updates?meet_code=${encodeURIComponent(meet)}&since=${crowdLastSeen}`);
+          if(!r.ok) return;
+          const d=await r.json();
+          if(d && d.latest && d.updated_at && d.updated_at>crowdLastSeen){
+            crowdLastSeen = d.updated_at;
+            const u = d.latest;
+            crowdIncomingText.textContent = `${u.display_name} says Event ${u.event_number}, Heat ${u.heat_number}. Apply to your timeline?`;
+            crowdIncoming.style.display="block";
+            crowdIncoming.dataset.evnum=String(u.event_number);
+            crowdIncoming.dataset.htnum=String(u.heat_number);
+          }
+        }catch{}
+      }, 25000);
+    }
+    startCrowdPolling();
+
+    crowdApplyBtn.addEventListener("click", ()=>{
+      const evNum=parseInt(crowdIncoming.dataset.evnum||"0",10);
+      const htNum=parseInt(crowdIncoming.dataset.htnum||"0",10);
+      crowdIncoming.style.display="none";
+      if (tlCurEvent && tlCurHeat){
+        tlCurEvent.value=String(evNum);
+        tlCurEvent.dispatchEvent(new Event("change"));
+        tlCurHeat.value=String(htNum);
+        document.getElementById("timeline-apply-btn").click();
+      }
+    });
+    crowdDismissBtn.addEventListener("click", ()=> crowdIncoming.style.display="none" );
+
+    // ---------- Free: schedule PDF ----------
+    btn.addEventListener("click", async ()=>{
+      const file=fileInput.files[0], swimmerName=swimmerSelect.value;
+      if(!file||!swimmerName){ statusEl.textContent="Please upload a file and select a swimmer."; return; }
+      btn.disabled=true; btn.textContent="Generating…";
+      const fd=new FormData(); fd.append("swimmer_name",swimmerName); fd.append("file",file);
+      try{
+        const r=await fetch("/generate-pdf",{method:"POST", body:fd}); if(!r.ok) throw 0;
+        const blob=await r.blob(); const url=URL.createObjectURL(blob);
+        const a=document.createElement("a"); a.href=url; a.download=swimmerName.replace(/\s+/g,"_")+"_schedule.pdf"; a.click();
+        btn.textContent="Schedule Ready ✓";
+        setTimeout(()=>{ btn.textContent="Generate Schedule"; btn.disabled=false; }, 1600);
+      }catch{ statusEl.textContent="Error generating PDF."; btn.disabled=false; }
+    });
   </script>
 </body>
 </html>

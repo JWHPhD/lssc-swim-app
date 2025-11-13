@@ -2,14 +2,19 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from typing import List
-import re
-from PyPDF2 import PdfReader
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional, Tuple
 from io import BytesIO
+from datetime import datetime, timedelta
+from threading import Lock
+from time import time
 import tempfile
+import re
 import os
-from datetime import datetime
 import json
+
+# PDF reading
+from PyPDF2 import PdfReader
 
 # PDF generation
 from reportlab.lib.pagesizes import landscape, letter
@@ -17,18 +22,21 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib import colors
 
-app = FastAPI()
+# --------------------------------------------------------------------------------------
+# App setup & config
+# --------------------------------------------------------------------------------------
+app = FastAPI(title="SwimDay Simplified API")
 
-# Testing Pro Features Branch Setup
-# --------------- SECURITY / CONFIG ---------------
 ALLOWED_ORIGINS = [
-    "https://lssc-swim-app.onrender.com",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    # add your Render domain(s) here:
+    "https://lssc-swim-app.onrender.com",
 ]
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
-PARENT_PIN = os.getenv("PARENT_PIN", "lssc2025")
+PARENT_PIN = "lssc2025"
+PREMIUM_CODE = "lssc-pro-2025"
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,581 +46,479 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --------------- STATIC FILES ---------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
+# --------------------------------------------------------------------------------------
+# Root -> serve SPA
+# --------------------------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     index_path = os.path.join(STATIC_DIR, "index.html")
     if not os.path.exists(index_path):
-        return HTMLResponse("<h1>Lakeshore Swim App</h1><p>static/index.html not found.</p>")
+        return HTMLResponse("<h1>SwimDay Simplified</h1><p>Put index.html in /static.</p>")
     with open(index_path, "r", encoding="utf-8") as f:
         return HTMLResponse(f.read())
 
 
-# --------------- AUTH (PIN) ---------------
+# --------------------------------------------------------------------------------------
+# Auth (PIN + Pro unlock)
+# --------------------------------------------------------------------------------------
 @app.post("/auth")
-async def verify_pin(pin: str = Form(...)):
+def auth(pin: str = Form(...)):
     if pin == PARENT_PIN:
         return {"ok": True}
     raise HTTPException(status_code=401, detail="Invalid PIN")
 
-# --------------- PREMIUM AUTH ---------------
-PREMIUM_CODE = os.getenv("PREMIUM_CODE", "lssc-pro-2025")
-
 @app.post("/premium-auth")
-async def premium_auth(code: str = Form(...)):
-    if code == PREMIUM_CODE:
+def premium_auth(code: str = Form(...)):
+    if code.strip() == PREMIUM_CODE:
         return {"ok": True}
     raise HTTPException(status_code=401, detail="Invalid premium code")
 
 
-
-# --------------- MAIN API ENDPOINTS ---------------
-
+# --------------------------------------------------------------------------------------
+# Core PDF parsing routes
+# --------------------------------------------------------------------------------------
 @app.post("/list-swimmers")
 async def list_swimmers(file: UploadFile = File(...)):
-    content_bytes = await secure_read_upload(file)
-    text = extract_text_from_upload(file.content_type, content_bytes)
-    events = parse_heat_sheet(text)
-    swimmers = get_unique_swimmers(events)
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+    swimmers = _unique_swimmers(events)
     return {"count": len(swimmers), "swimmers": swimmers}
 
-
 @app.post("/extract")
-async def extract_swimmer_events(
-    swimmer_name: str = Form(...),
-    file: UploadFile = File(...)
-):
-    content_bytes = await secure_read_upload(file)
-    text = extract_text_from_upload(file.content_type, content_bytes)
-    events = parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: e["event_number"])
-    matched = filter_for_swimmer(events, swimmer_name)
-    return {
-        "swimmer": swimmer_name,
-        "count": len(matched),
-        "events": matched,
-    }
+async def extract_swimmer_events(swimmer_name: str = Form(...), file: UploadFile = File(...)):
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+    matched = [e for e in events if e.get("swimmer_name") and swimmer_name.lower() in e["swimmer_name"].lower()]
+    return {"swimmer": swimmer_name, "count": len(matched), "events": matched}
+
+@app.post("/extract-all-events")
+async def extract_all_events(file: UploadFile = File(...)):
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+    return {"count": len(events), "events": events}
 
 
+# --------------------------------------------------------------------------------------
+# PDF generation (free + results + pro team)
+# --------------------------------------------------------------------------------------
 @app.post("/generate-pdf")
-async def generate_swimmer_pdf(
-    swimmer_name: str = Form(...),
-    file: UploadFile = File(...)
-):
-    content_bytes = await secure_read_upload(file)
-    text = extract_text_from_upload(file.content_type, content_bytes)
-    events = parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: e["event_number"])
-    matched = filter_for_swimmer(events, swimmer_name)
+async def generate_swimmer_pdf(swimmer_name: str = Form(...), file: UploadFile = File(...)):
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+    matched = [e for e in events if e.get("swimmer_name") and swimmer_name.lower() in e["swimmer_name"].lower()]
+    path = _build_schedule_pdf(swimmer_name, matched)
+    return FileResponse(path, media_type="application/pdf", filename=f"{_safe(swimmer_name)}_schedule.pdf")
 
-    tmp_path = build_schedule_pdf(swimmer_name, matched)
-    return FileResponse(
-        tmp_path,
-        media_type="application/pdf",
-        filename=f"{swimmer_name.replace(' ', '_')}_schedule.pdf",
-    )
+@app.post("/generate-results-pdf")
+async def generate_results_pdf(swimmer_name: str = Form(...), results_json: str = Form(...)):
+    try:
+        results = json.loads(results_json)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad results data")
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf"); tmp.close()
+    doc = SimpleDocTemplate(tmp.name, pagesize=landscape(letter), leftMargin=30, rightMargin=30, topMargin=30, bottomMargin=30)
+    elements = []
+    title_style = ParagraphStyle("title", fontSize=16, spaceAfter=6, leading=18)
+    sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
+
+    elements.append(Paragraph(f"SwimDay Simplified – Results for {swimmer_name}", title_style))
+    elements.append(Paragraph("Lakeshore Swim Club", sub_style))
+    elements.append(Paragraph(datetime.now().strftime("%B %d, %Y %I:%M %p"), sub_style))
+    elements.append(Spacer(1, 12))
+
+    data = [["Event", "Heat", "Lane", "Seed", "Final", "Δ (Final - Seed)"]]
+    for ev in results:
+        seed = ev.get("seed_time") or ""
+        final = ev.get("final_time") or ""
+        delta = ""
+        if seed and final:
+            try:
+                delta_seconds = _t2s(final) - _t2s(seed)
+                delta = f"{delta_seconds:+.2f}s"
+            except Exception:
+                delta = ""
+        heat_display = f"{ev.get('heat')}" + (f" of {ev.get('total_heats')}" if ev.get("total_heats") else "")
+        data.append([
+            f"#{ev.get('event_number')} – {ev.get('event_name','')}",
+            heat_display,
+            ev.get("lane") or "",
+            seed,
+            final,
+            delta
+        ])
+
+    table = Table(data, colWidths=[240, 70, 50, 60, 70, 90])
+    table.setStyle(_std_table_style())
+    elements.append(table)
+    doc.build(elements)
+
+    return FileResponse(tmp.name, media_type="application/pdf", filename=f"{_safe(swimmer_name)}_results.pdf")
 
 @app.post("/generate-team-pdf")
 async def generate_team_pdf(
-    swimmers_json: str = Form(...),
     file: UploadFile = File(...),
-    order_by: str = Form("swimmer"),
+    swimmers_json: str = Form(...),
+    order_by: str = Form("swimmer")
 ):
-
-    """
-    Build a combined PDF for multiple swimmers from the same heat sheet.
-    swimmers_json = '["Hammond, Dillon", "Smith, Alex"]'
-    """
-    # read and parse the PDF just like other endpoints
-    content_bytes = await secure_read_upload(file)
-    text = extract_text_from_upload(file.content_type, content_bytes)
-    events = parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: e["event_number"])
-
     try:
-        swimmer_names = json.loads(swimmers_json)
+        swimmers = [s.strip() for s in json.loads(swimmers_json) if s.strip()]
+        if not swimmers:
+            raise ValueError
     except Exception:
         raise HTTPException(status_code=400, detail="Bad swimmers list")
 
-    # collect matched events for each swimmer
-    all_rows = []  # list of dicts: swimmer, event, heat, lane, seed
-    for name in swimmer_names:
-        matched = filter_for_swimmer(events, name)
-        for ev in matched:
-            all_rows.append(
-                {
-                    "swimmer": name,
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+
+    combined = []
+    for sw in swimmers:
+        for ev in events:
+            if ev.get("swimmer_name") and sw.lower() in ev["swimmer_name"].lower():
+                combined.append({
+                    "swimmer": ev["swimmer_name"],
                     "event_number": ev["event_number"],
                     "event_name": ev["event_name"],
                     "heat": ev["heat"],
                     "total_heats": ev.get("total_heats"),
                     "lane": ev.get("lane"),
-                    "seed_time": ev.get("seed_time"),
-                }
-            )
-        # sort according to user choice
+                    "seed_time": ev.get("seed_time") or "",
+                })
+
     if order_by == "event":
-        # event -> heat -> swimmer
-        all_rows.sort(
-            key=lambda r: (
-                r["event_number"],
-                r["heat"] or 0,
-                r["swimmer"].lower(),
-            )
-        )
+        combined.sort(key=lambda x: (x["event_number"], x["heat"] or 0, x["swimmer"].lower()))
     else:
-        # default: swimmer -> event -> heat
-        all_rows.sort(
-            key=lambda r: (
-                r["swimmer"].lower(),
-                r["event_number"],
-                r["heat"] or 0,
-            )
-        )
+        combined.sort(key=lambda x: (x["swimmer"].lower(), x["event_number"], x["heat"] or 0))
 
-
-    # build PDF
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    tmp_path = tmp.name
-    tmp.close()
-
-    doc = SimpleDocTemplate(
-        tmp_path,
-        pagesize=landscape(letter),
-        leftMargin=30,
-        rightMargin=30,
-        topMargin=30,
-        bottomMargin=30,
-    )
-
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf"); tmp.close()
+    doc = SimpleDocTemplate(tmp.name, pagesize=landscape(letter), leftMargin=30, rightMargin=30, topMargin=30, bottomMargin=30)
     elements = []
     title_style = ParagraphStyle("title", fontSize=16, spaceAfter=6, leading=18)
     sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
 
     elements.append(Paragraph("SwimDay Simplified – Team Schedule", title_style))
     elements.append(Paragraph("Lakeshore Swim Club", sub_style))
-    elements.append(Paragraph(
-        f"Swimmers: {', '.join(swimmer_names)}", sub_style
-    ))
-    elements.append(
-        Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}", sub_style)
-    )
+    elements.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')} — Order by: {order_by.capitalize()}", sub_style))
     elements.append(Spacer(1, 12))
 
     data = [["Swimmer", "Event", "Heat", "Lane", "Seed"]]
+    for r in combined:
+        evt_text = f"#{r['event_number']} – {r['event_name']}"
+        heat_disp = f"{r['heat']}" + (f" of {r['total_heats']}" if r.get("total_heats") else "")
+        data.append([
+            r["swimmer"],
+            evt_text,
+            heat_disp,
+            r["lane"] if r["lane"] is not None else "",
+            r["seed_time"]
+        ])
 
-    if all_rows:
-        for row in all_rows:
-            evt_text = f"#{row['event_number']} – {row['event_name']}"
-            if row["total_heats"]:
-                heat_display = f"{row['heat']} of {row['total_heats']}"
-            else:
-                heat_display = str(row["heat"])
-            data.append(
-                [
-                    row["swimmer"],
-                    evt_text,
-                    heat_display,
-                    row["lane"] if row["lane"] is not None else "",
-                    row["seed_time"] or "",
-                ]
-            )
-    else:
-        data.append(["No events found for selected swimmers", "", "", "", ""])
-
-    table = Table(
-        data,
-        colWidths=[130, 240, 70, 50, 70],
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#007bff")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 10),
-                ("ALIGN", (2, 1), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-
+    table = Table(data, colWidths=[160, 290, 70, 50, 70])
+    table.setStyle(_std_table_style())
     elements.append(table)
     doc.build(elements)
 
-    return FileResponse(
-        tmp_path,
-        media_type="application/pdf",
-        filename="team_schedule.pdf",
-    )
+    return FileResponse(tmp.name, media_type="application/pdf", filename="team_schedule.pdf")
 
-# --------------- NEW: RESULTS PDF ENDPOINT ---------------
-@app.post("/generate-results-pdf")
-async def generate_results_pdf(
-    swimmer_name: str = Form(...),
-    results_json: str = Form(...)
+
+# --------------------------------------------------------------------------------------
+# Optional server-side timeline estimator (not required by HTML; offered as utility)
+# --------------------------------------------------------------------------------------
+@app.post("/timeline/estimate")
+async def timeline_estimate(
+    file: UploadFile = File(...),
+    start_hhmm: str = Form(...),  # "HH:MM" (24h or 12h both ok), date handled client-side
+    seconds_between_heats: int = Form(20),
+    seconds_between_events: int = Form(60),
 ):
-    """
-    results_json should be a JSON array of:
-    [
-      {
-        "event_number": 4,
-        "event_name": "Mixed 12 & Under 50 Yard Backstroke",
-        "heat": 7,
-        "total_heats": 10,
-        "lane": 7,
-        "seed_time": "47.64",
-        "final_time": "46.80"
-      },
-      ...
-    ]
-    """
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+
+    # Build event->heat->durations using "first seed in heat" heuristic
+    per_heat_seconds: Dict[Tuple[int, int], float] = {}
+    first_seen: Dict[Tuple[int, int], Optional[str]] = {}
+
+    for ev in events:
+        key = (ev["event_number"], ev["heat"] or 0)
+        if key not in first_seen and ev.get("seed_time"):
+            first_seen[key] = ev["seed_time"]
+
+    for key, t in first_seen.items():
+        per_heat_seconds[key] = _t2s(t) if t else 60.0  # default 60s if missing
+
+    # Walk the whole meet from start_hhmm and assign absolute times to each heat
+    start_dt = _parse_hhmm_to_today(start_hhmm)
+    schedule_map: Dict[Tuple[int, int], datetime] = {}
+    last_event = None
+    cursor = start_dt
+
+    seen_pairs = sorted({(e["event_number"], e["heat"] or 0) for e in events})
+    for (ev_no, heat_no) in seen_pairs:
+        if last_event is not None and ev_no != last_event:
+            cursor += timedelta(seconds=seconds_between_events)
+        schedule_map[(ev_no, heat_no)] = cursor
+        duration = per_heat_seconds.get((ev_no, heat_no), 60.0)
+        cursor += timedelta(seconds=duration + seconds_between_heats)
+        last_event = ev_no
+
+    # Return back a list for rendering
+    out = []
+    for ev in events:
+        when = schedule_map.get((ev["event_number"], ev["heat"] or 0))
+        out.append({
+            "swimmer_name": ev["swimmer_name"],
+            "event_number": ev["event_number"],
+            "event_name": ev["event_name"],
+            "heat": ev["heat"],
+            "total_heats": ev.get("total_heats"),
+            "lane": ev.get("lane"),
+            "seed_time": ev.get("seed_time"),
+            "estimated_dt": when.isoformat() if when else None,
+        })
+
+    return {"count": len(out), "items": out, "start": start_dt.isoformat()}
+
+
+# --------------------------------------------------------------------------------------
+# Crowd Assist (in-memory)
+# --------------------------------------------------------------------------------------
+_CROWD: Dict[str, Dict[str, Any]] = {}
+_LOCK = Lock()
+
+class CrowdUpdate(BaseModel):
+    meet_code: str
+    display_name: str
+    event_number: int
+    heat_number: int
+    note: Optional[str] = None
+
+def _now() -> float:
+    return time()
+
+def _ensure_meet(code: str):
+    if code not in _CROWD:
+        _CROWD[code] = {"latest": None, "history": [], "updated_at": 0.0}
+
+@app.post("/crowd/broadcast")
+def crowd_broadcast(update: CrowdUpdate):
+    code = update.meet_code.strip().upper()
+    name = update.display_name.strip()
+    if not code or not name:
+        raise HTTPException(status_code=400, detail="Missing meet_code or display_name")
+    if update.event_number < 1 or update.heat_number < 1:
+        raise HTTPException(status_code=400, detail="Bad event/heat")
+
+    with _LOCK:
+        _ensure_meet(code)
+        payload = {
+            "display_name": name,
+            "event_number": update.event_number,
+            "heat_number": update.heat_number,
+            "note": (update.note or "").strip(),
+            "server_ts": _now(),
+        }
+        row = _CROWD[code]
+        row["latest"] = payload
+        row["history"].append(payload)
+        row["updated_at"] = payload["server_ts"]
+
+    return {"ok": True}
+
+@app.get("/crowd/updates")
+def crowd_updates(meet_code: str, since: float = 0.0):
+    code = meet_code.strip().upper()
+    with _LOCK:
+        if code not in _CROWD:
+            return {"latest": None, "updated_at": 0.0}
+        row = _CROWD[code]
+        if row["updated_at"] > since:
+            return {"latest": row["latest"], "updated_at": row["updated_at"]}
+        return {"latest": None, "updated_at": row["updated_at"]}
+
+
+# --------------------------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------------------------
+async def _read_upload(file: UploadFile) -> bytes:
+    b = await file.read()
+    if len(b) > MAX_UPLOAD_SIZE:
+        raise HTTPException(status_code=413, detail="File too large (10MB)")
+    return b
+
+def _extract_text(content_type: str, content_bytes: bytes) -> str:
+    if not content_bytes:
+        raise HTTPException(status_code=400, detail="Empty file")
+    # content_type can be "application/octet-stream" depending on browser; allow it.
     try:
-        results = json.loads(results_json)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Bad results data")
-
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    tmp_path = tmp.name
-    tmp.close()
-
-    doc = SimpleDocTemplate(
-        tmp_path,
-        pagesize=landscape(letter),
-        leftMargin=30,
-        rightMargin=30,
-        topMargin=30,
-        bottomMargin=30,
-    )
-    elements = []
-
-    title_style = ParagraphStyle("title", fontSize=16, spaceAfter=6, leading=18)
-    sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
-
-    elements.append(Paragraph(f"SwimDay Simplified – Results for {swimmer_name}", title_style))
-    elements.append(Paragraph("Lakeshore Swim Club", sub_style))
-    elements.append(
-        Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}", sub_style)
-    )
-    elements.append(Spacer(1, 12))
-
-    data = [["Event", "Heat", "Lane", "Seed", "Final", "Δ (Final - Seed)"]]
-
-    for ev in results:
-        seed = ev.get("seed_time") or ""
-        final = ev.get("final_time") or ""
-        delta = ""
-        if seed and final:
-            delta_seconds = time_to_seconds(final) - time_to_seconds(seed)
-            delta = f"{delta_seconds:+.2f}s"
-        heat_display = ""
-        if ev.get("total_heats"):
-            heat_display = f"{ev.get('heat')} of {ev.get('total_heats')}"
-        else:
-            heat_display = str(ev.get("heat") or "")
-        data.append(
-            [
-                f"#{ev.get('event_number')} – {ev.get('event_name','')}",
-                heat_display,
-                ev.get("lane") or "",
-                seed,
-                final,
-                delta,
-            ]
-        )
-
-    table = Table(
-        data,
-        colWidths=[240, 70, 50, 60, 70, 90],
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#007bff")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 10),
-                ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-
-    elements.append(table)
-    doc.build(elements)
-
-    return FileResponse(
-        tmp_path,
-        media_type="application/pdf",
-        filename=f"{swimmer_name.replace(' ', '_')}_results.pdf",
-    )
-
-
-# --------------- HELPERS ---------------
-
-async def secure_read_upload(file: UploadFile) -> bytes:
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Max 10 MB.")
-    return content
-
-
-def extract_text_from_upload(content_type: str, content_bytes: bytes) -> str:
-    if content_bytes is None:
-        raise HTTPException(status_code=400, detail="Empty file.")
-    if content_type not in ("application/pdf", "application/x-pdf", "application/octet-stream"):
-        raise HTTPException(status_code=400, detail="Only PDF heat sheets are supported.")
-    try:
-        pdf_stream = BytesIO(content_bytes)
-        reader = PdfReader(pdf_stream)
-        pages_text = []
+        reader = PdfReader(BytesIO(content_bytes))
+        texts = []
         for page in reader.pages:
-            pages_text.append(page.extract_text() or "")
-        return "\n".join(pages_text)
+            texts.append(page.extract_text() or "")
+        return "\n".join(texts)
     except Exception:
-        raise HTTPException(status_code=400, detail="Could not read PDF. Please upload a standard PDF heat sheet.")
+        raise HTTPException(status_code=400, detail="Could not read PDF. Upload a standard PDF heat sheet.")
 
-
-def preprocess_text(text: str) -> str:
-    text = re.sub(
-        r"Heat\s+(\d+)\s+of\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
-        r"#\3 \4\nHeat \1 of \2",
-        text,
-    )
-    text = re.sub(
-        r"Heat\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
-        r"#\2 \3\nHeat \1",
-        text,
-    )
+def _normalize(text: str) -> str:
+    text = re.sub(r"Heat\s+(\d+)\s+of\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)", r"#\3 \4\nHeat \1 of \2", text)
+    text = re.sub(r"Heat\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)", r"#\2 \3\nHeat \1", text)
     text = re.sub(r"(?<!\n)(#\d+\s+)", r"\n\1", text)
     text = re.sub(r"(?<!\n)(Heat\s+\d+)", r"\n\1", text)
     return text
 
-
-def parse_heat_sheet(text: str):
-    text = preprocess_text(text)
+def _parse_heat_sheet(text: str) -> List[Dict[str, Any]]:
+    text = _normalize(text)
     lines = text.splitlines()
-    events: List[dict] = []
 
-    current_event_number = None
-    current_event_name = None
-    current_heat = None
-    current_total_heats = None
+    events: List[Dict[str, Any]] = []
 
-    event_header_re = re.compile(r"^#(\d+)\s+(.*)")
-    heat_of_re = re.compile(r"^Heat\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
-    heat_only_re = re.compile(r"^Heat\s+(\d+)\b", re.IGNORECASE)
+    ev_re = re.compile(r"^#(\d+)\s+(.*)")
+    heat_of = re.compile(r"^Heat\s+(\d+)\s+of\s+(\d+)", re.I)
+    heat_only = re.compile(r"^Heat\s+(\d+)\b", re.I)
 
-    for line in lines:
-        line = line.strip()
+    cur_ev = None
+    cur_name = None
+    cur_heat = None
+    cur_total = None
+
+    for raw in lines:
+        line = raw.strip()
         if not line:
             continue
 
-        m_ev = event_header_re.match(line)
-        if m_ev:
-            current_event_number = int(m_ev.group(1))
-            current_event_name = m_ev.group(2).strip().rstrip(")")
-            current_heat = None
+        m = ev_re.match(line)
+        if m:
+            cur_ev = int(m.group(1))
+            cur_name = m.group(2).strip().rstrip(")")
+            cur_heat = None
+            cur_total = None
             continue
 
-        m_heat = heat_of_re.match(line)
-        if m_heat:
-            current_heat = int(m_heat.group(1))
-            current_total_heats = int(m_heat.group(2))
+        m = heat_of.match(line)
+        if m:
+            cur_heat = int(m.group(1))
+            cur_total = int(m.group(2))
             continue
 
-        m_heat2 = heat_only_re.match(line)
-        if m_heat2:
-            current_heat = int(m_heat2.group(1))
+        m = heat_only.match(line)
+        if m:
+            cur_heat = int(m.group(1))
             continue
 
-        if current_event_number is not None and current_heat is not None:
-            name = extract_name(line)
+        if cur_ev is not None and cur_heat is not None:
+            name = _name_from_line(line)
             if name:
-                events.append(
-                    {
-                        "event_number": current_event_number,
-                        "event_name": current_event_name,
-                        "heat": current_heat,
-                        "total_heats": current_total_heats,
-                        "lane": extract_lane(line),
-                        "seed_time": extract_seed_time(line),
-                        "raw_line": line,
-                        "swimmer_name": name,
-                    }
-                )
+                events.append({
+                    "event_number": cur_ev,
+                    "event_name": cur_name,
+                    "heat": cur_heat,
+                    "total_heats": cur_total,
+                    "lane": _lane_from_line(line),
+                    "seed_time": _seed_from_line(line),
+                    "swimmer_name": name,
+                })
 
     return events
 
-
-def extract_lane(line: str):
+def _lane_from_line(line: str) -> Optional[int]:
     m = re.search(r"(\d+)\s*$", line)
-    if m:
-        return int(m.group(1))
-    return None
+    return int(m.group(1)) if m else None
 
-
-def extract_seed_time(line: str):
+def _seed_from_line(line: str) -> Optional[str]:
     m = re.search(r"(\d+:\d+\.\d+|\d+\.\d+)", line)
-    if m:
-        return m.group(1)
-    return None
+    return m.group(1) if m else None
 
-
-def extract_name(line: str):
+def _name_from_line(line: str) -> Optional[str]:
     m = re.search(r"([A-Za-z'\-]+,\s+[A-Za-z'\-]+(?:\s+[A-Za-z.]+)?)", line)
-    if m:
-        return m.group(1).strip()
-    return None
+    return m.group(1).strip() if m else None
 
+def _unique_swimmers(events: List[Dict[str, Any]]) -> List[str]:
+    names = {e["swimmer_name"] for e in events if e.get("swimmer_name")}
+    return sorted(names, key=lambda s: s.lower())
 
-def filter_for_swimmer(events: List[dict], swimmer_name: str):
-    target = swimmer_name.lower().strip()
-    return [
-        ev for ev in events
-        if ev.get("swimmer_name") and target in ev["swimmer_name"].lower()
-    ]
+def _std_table_style():
+    return TableStyle([
+        ("BACKGROUND",(0,0),(-1,0),colors.HexColor("#007bff")),
+        ("TEXTCOLOR",(0,0),(-1,0),colors.whitesmoke),
+        ("FONTNAME",(0,0),(-1,0),"Helvetica-Bold"),
+        ("FONTSIZE",(0,0),(-1,0),10),
+        ("ALIGN",(0,0),(-1,-1),"CENTER"),
+        ("ALIGN",(0,0),(0,-1),"LEFT"),
+        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
+        ("GRID",(0,0),(-1,-1),0.4,colors.grey),
+        ("ROWBACKGROUNDS",(0,1),(-1,-1),[colors.whitesmoke, colors.lightgrey]),
+        ("LEFTPADDING",(0,0),(-1,-1),4),
+        ("RIGHTPADDING",(0,0),(-1,-1),4),
+    ])
 
+def _t2s(t: str) -> float:
+    t = t.strip()
+    if ":" in t:
+        m, s = t.split(":", 1)
+        return int(m) * 60 + float(s)
+    return float(t)
 
-def get_unique_swimmers(events: List[dict]) -> List[str]:
-    names = set()
-    for ev in events:
-        if ev.get("swimmer_name"):
-            names.add(ev["swimmer_name"])
-    return sorted(names, key=lambda x: x.lower())
+def _safe(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_\-]+", "_", name.strip())
 
+def _parse_hhmm_to_today(hhmm: str) -> datetime:
+    """Accepts 'HH:MM' in 24h or 12h (no AM/PM) and maps to today."""
+    hhmm = hhmm.strip()
+    if not re.match(r"^\d{1,2}:\d{2}$", hhmm):
+        # fallback to noon
+        return datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
+    h, m = hhmm.split(":")
+    h = int(h); m = int(m)
+    now = datetime.now()
+    # clamp to 0-23
+    if h > 23: h = 23
+    if m > 59: m = 59
+    return now.replace(hour=h, minute=m, second=0, microsecond=0)
 
-def build_schedule_pdf(swimmer_name: str, matched: List[dict]) -> str:
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    tmp_path = tmp.name
-    tmp.close()
-
-    doc = SimpleDocTemplate(
-        tmp_path,
-        pagesize=landscape(letter),
-        leftMargin=30,
-        rightMargin=30,
-        topMargin=30,
-        bottomMargin=30,
-    )
+def _build_schedule_pdf(swimmer_name: str, matched: List[Dict[str, Any]]) -> str:
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf"); tmp.close()
+    doc = SimpleDocTemplate(tmp.name, pagesize=landscape(letter), leftMargin=30, rightMargin=30, topMargin=30, bottomMargin=30)
     elements = []
-
     title_style = ParagraphStyle("title", fontSize=16, spaceAfter=6, leading=18)
     sub_style = ParagraphStyle("sub", fontSize=9, spaceAfter=4, textColor=colors.grey)
-    notes_label_style = ParagraphStyle("label", fontSize=9, spaceAfter=2)
 
     elements.append(Paragraph(f"SwimDay Simplified – {swimmer_name}", title_style))
     elements.append(Paragraph("Lakeshore Swim Club", sub_style))
-    elements.append(
-        Paragraph(
-            f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}",
-            sub_style,
-        )
-    )
+    elements.append(Paragraph(f"Generated: {datetime.now().strftime('%B %d, %Y %I:%M %p')}", sub_style))
     elements.append(Spacer(1, 12))
 
     data = [["Event", "Heat", "Lane", "Seed", "Results"]]
-    if matched:
+    if not matched:
+        data.append(["No events found for this swimmer", "", "", "", ""])
+    else:
         for ev in matched:
             evt_text = f"#{ev['event_number']} – {ev['event_name']}"
-            total_heats = ev.get("total_heats")
-            if total_heats:
-                heat_display = f"{ev['heat']} of {total_heats}"
-            else:
-                heat_display = str(ev["heat"])
-            data.append(
-                [
-                    Paragraph(evt_text, ParagraphStyle("ev", fontSize=9, leading=11)),
-                    heat_display,
-                    ev["lane"] if ev["lane"] is not None else "",
-                    ev["seed_time"] or "",
-                    "Time: __________   Place: ______",
-                ]
-            )
-    else:
-        data.append(["No events found for this swimmer", "", "", "", ""])
+            heat_disp = f"{ev['heat']}" + (f" of {ev.get('total_heats')}" if ev.get("total_heats") else "")
+            data.append([
+                Paragraph(evt_text, ParagraphStyle("ev", fontSize=9, leading=11)),
+                heat_disp,
+                ev.get("lane") or "",
+                ev.get("seed_time") or "",
+                "Time: ______  Place: ____"
+            ])
 
-    table = Table(
-        data,
-        colWidths=[240, 70, 50, 60, 200],
-    )
-    table.setStyle(
-        TableStyle(
-            [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#007bff")),
-                ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, 0), 10),
-                ("ALIGN", (1, 1), (3, -1), "CENTER"),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
-                ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-            ]
-        )
-    )
-
+    table = Table(data, colWidths=[240, 70, 50, 60, 200])
+    table.setStyle(_std_table_style())
     elements.append(table)
-    elements.append(Spacer(1, 14))
-    elements.append(Paragraph("Notes:", notes_label_style))
-    elements.append(Spacer(1, 4))
-    for _ in range(3):
-        elements.append(
-            Paragraph("_______________________________________________________________", sub_style)
-        )
-
     doc.build(elements)
-    return tmp_path
-
-
-def time_to_seconds(t: str) -> float:
-    """
-    Convert time strings like "1:05.32" or "47.64" to seconds.
-    """
-    t = t.strip()
-    if ":" in t:
-        mins, rest = t.split(":", 1)
-        return int(mins) * 60 + float(rest)
-    return float(t)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return tmp.name
