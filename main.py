@@ -31,7 +31,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # add your Render domain(s) here:
-    "https://lssc-swim-app.onrender.com", "https://lssc-swim-app-timeline-dev.onrender.com",
+    "https://lssc-swim-app.onrender.com","https://lssc-swim-app-timeline-dev.onrender.com",
 ]
 
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
