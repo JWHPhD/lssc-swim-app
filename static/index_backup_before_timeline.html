@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SwimDay Simplified | Lakeshore Swim Club</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 750px;
+      margin: 2rem auto;
+      padding: 0 1rem 4rem;
+      background: linear-gradient(180deg, #eaf4ff 0%, #cde5fa 100%);
+      color: #000;
+    }
+    header {
+      text-align: center;
+      background-color: #002855;
+      color: white;
+      padding: 1rem 0 1.5rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.2);
+    }
+    header img {
+      display: block;
+      margin: 0 auto 0.5rem;
+      width: 160px;
+      height: auto;
+    }
+    header h1 { margin: 0; font-size: 1.8rem; letter-spacing: 1px; }
+    header h2 { margin: 0.25rem 0 0; font-size: 1.2rem; font-weight: normal; color: #d9e3f0; }
+
+    .card {
+      background: #fff;
+      padding: 1.2rem 1.4rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      margin-bottom: 1rem;
+    }
+
+    h3 {
+      margin-top: 0;
+      margin-bottom: 0.6rem;
+    }
+
+    label {
+      display: block;
+      margin-top: 0.8rem;
+      font-weight: bold;
+      font-size: 0.95rem;
+    }
+
+    input[type="file"],
+    select,
+    input[type="password"],
+    input[type="text"] {
+      width: 100%;
+      margin-top: 0.25rem;
+      padding: 0.4rem 0.35rem;
+      border-radius: 4px;
+      border: 1px solid #c0c6d8;
+      box-sizing: border-box;
+      font-size: 0.95rem;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.65rem 1.4rem;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      transition: background 0.3s ease, transform 0.2s ease;
+    }
+    button:hover { background: #0062cc; }
+    button:disabled { background: #999; cursor: not-allowed; }
+    button.success { background: #28a745 !important; transform: scale(1.05); }
+
+    .muted { color: #666; font-size: 0.85rem; }
+    .small { font-size: 0.8rem; }
+
+    .preview, .results {
+      background: #fff;
+      padding: 0.9rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      margin-top: 0.6rem;
+    }
+    .event {
+      border: 1px solid #e1e1e1;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 0.45rem;
+      background: #f9fbff;
+    }
+    .event-title { font-weight: bold; }
+
+    footer {
+      text-align: center;
+      color: #333;
+      font-size: 0.85rem;
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ccc;
+    }
+    .footer-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .social-icons {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 0.3rem;
+    }
+    .social-icons a {
+      display: inline-block;
+      margin: 0 8px;
+      color: #004aad;
+      width: 24px;
+      height: 24px;
+      transition: transform 0.2s ease, color 0.2s ease;
+    }
+    .social-icons a:hover { color: #007bff; transform: scale(1.1); }
+    .social-icons svg { width: 24px; height: 24px; vertical-align: middle; }
+    footer a { color: #004aad; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    .globe-icon {
+      width: 16px;
+      height: 16px;
+      vertical-align: middle;
+      margin-right: 4px;
+      color: #004aad;
+    }
+    .created-by {
+      margin-top: 0.6rem;
+      font-size: 0.85rem;
+      text-align: center;
+      color: #444;
+    }
+
+    /* PIN gate */
+    #app-content {
+      display: none;
+    }
+    #pin-error {
+      color: #b20000;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      display: none;
+    }
+    #premium-unlock-status {
+      color: #b20000;
+      font-size: 0.8rem;
+      margin-top: 0.4rem;
+      display: none;
+    }
+    #status {
+      margin-top: 0.6rem;
+      font-size: 0.87rem;
+      min-height: 1em;
+    }
+
+    table.results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      margin-top: 0.4rem;
+    }
+    table.results-table th,
+    table.results-table td {
+      border: 1px solid #d0d0d0;
+      padding: 4px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      background: #e7f1ff;
+      color: #004aad;
+      margin-left: 0.3rem;
+    }
+
+    .admin-toggle {
+      font-size: 0.85rem;
+      color: #004aad;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-top: 0.4rem;
+      display: inline-block;
+    }
+    #admin-panel {
+      display: none;
+      margin-top: 0.6rem;
+      border-top: 1px dashed #ccc;
+      padding-top: 0.6rem;
+    }
+    #heat-sheet-status {
+      font-size: 0.85rem;
+      margin-top: 0.4rem;
+    }
+    #use-global-btn {
+      margin-left: 0;
+      margin-top: 0.6rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="/static/logo.png" alt="Lakeshore Swim Club Logo" />
+    <h1>Lakeshore Swim Club</h1>
+    <h2>SwimDay Simplified</h2>
+  </header>
+
+  <!-- PIN CARD -->
+  <div id="pin-card" class="card">
+    <h3>Parent Access</h3>
+    <p class="muted">
+      This page is for LSSC swim parents. Enter your
+      <strong>free access PIN</strong> or your <strong>Pro/Premium PIN</strong> if you have one.
+    </p>
+    <label for="pin-input">PIN</label>
+    <input id="pin-input" type="password" placeholder="Enter PIN" />
+    <button id="pin-btn">Continue</button>
+    <div id="pin-error">Incorrect PIN. Please try again.</div>
+    <p class="small" style="margin-top:0.6rem;">
+      <a href="#" id="reset-device-link">Reset this device</a> (clears remembered access & Pro unlock)
+    </p>
+  </div>
+
+  <!-- MAIN APP CONTENT (hidden until PIN is OK) -->
+  <div id="app-content">
+    <!-- HEAT SHEET SOURCE SECTION -->
+    <div class="card">
+      <h3>Heat Sheet</h3>
+      <p class="muted">
+        Upload the meet heat sheet PDF to use free or premium tools.<br>
+        If the meet admin has uploaded a shared heat sheet, you can use it without uploading.
+      </p>
+
+      <div id="heat-sheet-status" class="muted"></div>
+
+      <label for="file">Heat sheet (PDF)</label>
+      <input type="file" id="file" accept="application/pdf" />
+
+      <button id="use-global-btn" style="display:none;">
+        Use shared heat sheet
+      </button>
+
+      <div id="status" class="muted"></div>
+    </div>
+
+    <!-- FREE SECTION -->
+    <div id="free-section" class="card">
+      <h3>Free Version</h3>
+      <p class="muted">
+        Choose a swimmer to see their events and track results.
+      </p>
+
+      <label for="swimmerSelect">Swimmer</label>
+      <select id="swimmerSelect">
+        <option value="">No swimmers loaded yet</option>
+      </select>
+
+      <div id="previewBox" class="preview" style="display:none;">
+        <h3>Event Preview</h3>
+        <div id="previewContent"></div>
+      </div>
+
+      <div id="resultsBox" class="preview" style="display:none;">
+        <h3>Results vs Seed</h3>
+        <div id="resultsContent"></div>
+        <button id="downloadResultsBtn">Download Results PDF</button>
+      </div>
+
+      <button id="submitBtn" style="margin-top:1rem;">
+        Generate Schedule PDF
+      </button>
+    </div>
+
+    <!-- PREMIUM / PRO UNLOCK CARD -->
+    <div id="premium-card" class="card">
+      <h3>Premium / Pro Features</h3>
+      <p class="muted">
+        Combine multiple swimmers into a single schedule, download a team PDF,
+        and use advanced tools. Enter your Pro PIN below to unlock.
+      </p>
+      <label for="premium-input">Pro PIN</label>
+      <input id="premium-input" type="password" placeholder="Enter Pro PIN" />
+      <button id="premium-btn">Unlock Pro</button>
+      <div id="premium-unlock-status"></div>
+    </div>
+
+    <!-- PREMIUM FEATURE AREA (hidden until unlocked) -->
+    <div id="premium-features" class="card" style="display:none;">
+      <h3>Pro: Multi-Swimmer Schedule</h3>
+      <p class="muted">
+        Select multiple swimmers to build a combined family or lane buddy schedule.
+        <span class="badge">Pro</span>
+      </p>
+
+      <label for="pro-multi-swimmers">Select swimmers to combine:</label>
+      <select
+        id="pro-multi-swimmers"
+        multiple
+        size="8"
+        style="width:100%; max-width:420px; min-height:180px; overflow-y:auto;">
+        <!-- filled by JS -->
+      </select>
+      <p class="muted small">Tip: hold Ctrl (Windows) or ⌘ (Mac) to pick more than one.</p>
+
+      <label for="pro-order-by" style="margin-top:0.5rem;">Order PDF by:</label>
+      <select id="pro-order-by" style="max-width:220px;">
+        <option value="swimmer" selected>Swimmer (default)</option>
+        <option value="event">Event</option>
+      </select>
+
+      <div style="margin-top:0.7rem;">
+        <button id="pro-preview-team">
+          Preview Combined Events
+        </button>
+        <button id="pro-download-team-pdf">
+          Download Team Schedule PDF
+        </button>
+      </div>
+
+      <!-- Pro combined preview -->
+      <div id="pro-preview-box" style="margin-top:1rem; background:#f4f7ff; padding:0.75rem; border-radius:6px; display:none;">
+        <h4 style="margin-top:0; margin-bottom:0.5rem;">Combined Event Preview</h4>
+        <div id="pro-preview-content" style="max-height:260px; overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ADMIN PANEL (for meet organizers) -->
+    <div class="card">
+      <h3>Admin Tools <span class="badge">Organizer</span></h3>
+      <p class="muted small">
+        Meet organizers can upload a shared/global heat sheet here so parents
+        don’t have to upload it themselves.
+      </p>
+      <span id="admin-toggle" class="admin-toggle">Show admin panel</span>
+
+      <div id="admin-panel">
+        <label for="admin-pin">Admin PIN</label>
+        <input id="admin-pin" type="password" placeholder="Enter admin PIN" />
+
+        <label for="admin-file">Heat sheet (PDF) for all parents</label>
+        <input id="admin-file" type="file" accept="application/pdf" />
+
+        <button id="admin-upload-btn">Upload shared heat sheet</button>
+        <div id="admin-upload-status" class="muted small" style="margin-top:0.4rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-top">
+      <div class="social-icons">
+        <a href="https://www.facebook.com/swimlakeshore" target="_blank" aria-label="Facebook">
+          <svg viewBox="0 0 24 24">
+            <path fill="currentColor" d="M22.7 0H1.3C.6 0 0 .6 0 1.3v21.3C0 23.4.6 24 1.3 24H12V14.7H9.3v-3.6H12V8.4c0-2.7 1.6-4.2 4-4.2 1.1 0 2 .1 2.3.1v2.7h-1.6c-1.2 0-1.4.6-1.4 1.4v1.8h2.8l-.4 3.6h-2.4V24h4.8c.7 0 1.3-.6 1.3-1.3V1.3C24 .6 23.4 0 22.7 0z"/>
+          </svg>
+        </a>
+      </div>
+      <p>
+        <svg class="globe-icon" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm7.94 9h-3.14c-.05-1.86-.34-3.57-.83-5.02A8.03 8.03 0 0 1 19.94 11zM12 4c.74 0 1.45.1 2.13.3.46 1.34.75 3.02.81 4.7H9.06c.06-1.68.35-3.36.81-4.7A8 8 0 0 1 12 4zM4.06 13h3.14c.05 1.86.34 3.57.83 5.02A8.03 8.03 0 0 1 4.06 13zm3.14-2H4.06a8.03 8.03 0 0 1 3.97-5.02A18.1 18.1 0 0 0 7.2 11zm1.86 2h5.88c-.06 1.68-.35 3.36-.81 4.7A8 8 0 0 1 12 20a8 8 0 0 1-2.13-.3c-.46-1.34-.75-3.02-.81-4.7zM14.8 11H9.2c.05-1.68.33-3.36.79-4.7.43-.13.88-.2 1.33-.2s.9.07 1.33.2c.46 1.34.74 3.02.79 4.7zm.26 2c-.05 1.68-.33 3.36-.79 4.7.43.13.88.2 1.33.2s.9-.07 1.33-.2c.46-1.34.74-3.02.79-4.7h-2.66zm1.8 5.02c.49-1.45.78-3.16.83-5.02h3.14a8.03 8.03 0 0 1-3.97 5.02z"/>
+        </svg>
+        Visit the LSSC website at:
+        <a href="https://www.gomotionapp.com/team/lelssc/page/home" target="_blank">
+          www.gomotionapp.com/team/lelssc/page/home
+        </a>
+      </p>
+    </div>
+    <div class="created-by">
+      <p>Created by: <strong>Joe Hammond</strong></p>
+    </div>
+  </footer>
+
+  <script>
+    // === CONFIG ===
+    const PRO_PIN = "lssc-pro-2025"; // Pro / Premium code (front-end check only)
+
+    // === DOM REFS ===
+    const pinCard = document.getElementById("pin-card");
+    const appContent = document.getElementById("app-content");
+    const pinInput = document.getElementById("pin-input");
+    const pinBtn = document.getElementById("pin-btn");
+    const pinError = document.getElementById("pin-error");
+    const resetDeviceLink = document.getElementById("reset-device-link");
+
+    const fileInput = document.getElementById("file");
+    const statusEl = document.getElementById("status");
+    const heatSheetStatusEl = document.getElementById("heat-sheet-status");
+    const useGlobalBtn = document.getElementById("use-global-btn");
+
+    const freeSection = document.getElementById("free-section");
+    const swimmerSelect = document.getElementById("swimmerSelect");
+    const previewBox = document.getElementById("previewBox");
+    const previewContent = document.getElementById("previewContent");
+    const resultsBox = document.getElementById("resultsBox");
+    const resultsContent = document.getElementById("resultsContent");
+    const submitBtn = document.getElementById("submitBtn");
+    const downloadResultsBtn = document.getElementById("downloadResultsBtn");
+
+    const premiumCard = document.getElementById("premium-card");
+    const premiumFeatures = document.getElementById("premium-features");
+    const premiumInput = document.getElementById("premium-input");
+    const premiumBtn = document.getElementById("premium-btn");
+    const premiumStatus = document.getElementById("premium-unlock-status");
+
+    const proMulti = document.getElementById("pro-multi-swimmers");
+    const proOrderBy = document.getElementById("pro-order-by");
+    const proPreviewBtn = document.getElementById("pro-preview-team");
+    const proPreviewBox = document.getElementById("pro-preview-box");
+    const proPreviewContent = document.getElementById("pro-preview-content");
+    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
+
+    const adminToggle = document.getElementById("admin-toggle");
+    const adminPanel = document.getElementById("admin-panel");
+    const adminPinInput = document.getElementById("admin-pin");
+    const adminFileInput = document.getElementById("admin-file");
+    const adminUploadBtn = document.getElementById("admin-upload-btn");
+    const adminUploadStatus = document.getElementById("admin-upload-status");
+
+    // === STATE ===
+    let hasGlobalSheet = false;
+    let useGlobalSheet = false;
+    let currentEvents = [];
+    let currentSwimmerName = "";
+    let currentSwimmerList = [];
+
+    // === LOCAL STORAGE KEYS ===
+    const LS_FREE_OK = "lssc-pin-ok";
+    const LS_PRO_OK = "lssc-premium-ok";
+
+    function showApp(premium) {
+      pinCard.style.display = "none";
+      appContent.style.display = "block";
+
+      if (premium) {
+        premiumFeatures.style.display = "block";
+        premiumCard.style.display = "none";
+        localStorage.setItem(LS_PRO_OK, "yes");
+        localStorage.setItem(LS_FREE_OK, "yes"); // Pro implies free access too
+      } else {
+        // free only
+        premiumFeatures.style.display = "none";
+        premiumCard.style.display = "block";
+        localStorage.setItem(LS_FREE_OK, "yes");
+      }
+
+      // Check if there is a shared heat sheet
+      checkGlobalHeatSheetStatus();
+    }
+
+    function restoreFromLocalStorage() {
+      const proOk = localStorage.getItem(LS_PRO_OK) === "yes";
+      const freeOk = localStorage.getItem(LS_FREE_OK) === "yes";
+
+      if (proOk) {
+        showApp(true);
+      } else if (freeOk) {
+        showApp(false);
+      }
+    }
+
+    // === PIN HANDLING ===
+    pinBtn.addEventListener("click", async () => {
+      const pin = pinInput.value.trim();
+      pinError.style.display = "none";
+      if (!pin) return;
+
+      // 1) Check Pro PIN locally first
+      if (pin === PRO_PIN) {
+        showApp(true);
+        return;
+      }
+
+      // 2) Otherwise treat as Free PIN and check with backend /auth
+      try {
+        const fd = new FormData();
+        fd.append("pin", pin);
+        const res = await fetch("/auth", { method: "POST", body: fd });
+        if (!res.ok) throw new Error("bad pin");
+        showApp(false);
+      } catch (err) {
+        pinError.style.display = "block";
+      }
+    });
+
+    // Reset device (clear remembered access)
+    resetDeviceLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      localStorage.removeItem(LS_FREE_OK);
+      localStorage.removeItem(LS_PRO_OK);
+      // also clear any old schedule storage
+      Object.keys(localStorage).forEach((k) => {
+        if (k.startsWith("lssc-results-")) {
+          localStorage.removeItem(k);
+        }
+      });
+      window.location.reload();
+    });
+
+    // === GLOBAL HEAT SHEET STATUS ===
+    async function checkGlobalHeatSheetStatus() {
+      try {
+        const res = await fetch("/current-heat-sheet");
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (data.has_global) {
+          hasGlobalSheet = true;
+          heatSheetStatusEl.innerHTML =
+            `Shared heat sheet available: <strong>${data.filename}</strong><br>` +
+            `<span class="small">Uploaded: ${data.uploaded_at}</span>`;
+          useGlobalBtn.style.display = "inline-block";
+        } else {
+          hasGlobalSheet = false;
+          heatSheetStatusEl.textContent = "No shared heat sheet found. Please upload a PDF.";
+          useGlobalBtn.style.display = "none";
+        }
+      } catch {
+        hasGlobalSheet = false;
+        heatSheetStatusEl.textContent = "Unable to check shared heat sheet status.";
+        useGlobalBtn.style.display = "none";
+      }
+    }
+
+    useGlobalBtn.addEventListener("click", () => {
+      if (!hasGlobalSheet) {
+        alert("No shared heat sheet is currently available.");
+        return;
+      }
+      fileInput.value = "";
+      useGlobalSheet = true;
+      loadSwimmersFromSource("global");
+    });
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      useGlobalSheet = false;
+      loadSwimmersFromSource("file");
+    });
+
+    async function loadSwimmersFromSource(source) {
+      const fd = new FormData();
+      statusEl.textContent = "Reading heat sheet and finding swimmers...";
+      swimmerSelect.innerHTML = '<option value="">Loading...</option>';
+      previewBox.style.display = "none";
+      resultsBox.style.display = "none";
+      previewContent.innerHTML = "";
+      resultsContent.innerHTML = "";
+      proPreviewBox.style.display = "none";
+      proPreviewContent.innerHTML = "";
+
+      try {
+        if (source === "file") {
+          const file = fileInput.files[0];
+          if (!file) {
+            statusEl.textContent = "Please choose a PDF heat sheet.";
+            return;
+          }
+          fd.append("file", file);
+          fd.append("use_global", "0");
+        } else if (source === "global") {
+          fd.append("use_global", "1");
+        } else {
+          statusEl.textContent = "Unknown source.";
+          return;
+        }
+
+        const res = await fetch("/list-swimmers", {
+          method: "POST",
+          body: fd
+        });
+        if (!res.ok) throw new Error("Error loading swimmers");
+        const data = await res.json();
+        const swimmers = data.swimmers || [];
+
+        currentSwimmerList = swimmers;
+        swimmerSelect.innerHTML = "";
+        if (swimmers.length === 0) {
+          swimmerSelect.innerHTML = '<option value="">No swimmers found</option>';
+        } else {
+          swimmers.forEach((name) => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            swimmerSelect.appendChild(opt);
+          });
+        }
+
+        // Fill Pro multi-select if present
+        if (proMulti) {
+          proMulti.innerHTML = "";
+          swimmers.forEach((name) => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            proMulti.appendChild(opt);
+          });
+        }
+
+        statusEl.textContent = swimmers.length
+          ? "Swimmers loaded. Pick one to preview."
+          : "No swimmers found in this heat sheet.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error reading swimmers from PDF.";
+        swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
+      }
+    }
+
+    // Helper: attach current source (file/global) to FormData
+    function appendSourceToFormData(fd) {
+      const file = fileInput.files[0];
+      if (file && !useGlobalSheet) {
+        fd.append("file", file);
+        fd.append("use_global", "0");
+        return true;
+      }
+      if (useGlobalSheet) {
+        fd.append("use_global", "1");
+        return true;
+      }
+      // Neither file nor global selected
+      alert("Please upload a heat sheet or use the shared heat sheet first.");
+      return false;
+    }
+
+    // === LOCAL STORAGE FOR RESULTS ===
+    function storageKeyFor(swimmer) {
+      return "lssc-results-" + swimmer.toLowerCase().replace(/\s+/g, "_");
+    }
+    function loadResultsFromStorage(swimmer) {
+      if (!swimmer) return {};
+      const key = storageKeyFor(swimmer);
+      const raw = localStorage.getItem(key);
+      if (!raw) return {};
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return {};
+      }
+    }
+    function saveResultsToStorage(swimmer, obj) {
+      if (!swimmer) return;
+      const key = storageKeyFor(swimmer);
+      localStorage.setItem(key, JSON.stringify(obj));
+    }
+
+    // === FREE: LOAD EVENTS FOR SELECTED SWIMMER ===
+    swimmerSelect.addEventListener("change", async () => {
+      const swimmerName = swimmerSelect.value;
+      const file = fileInput.files[0];
+      if (!swimmerName) return;
+
+      // Require a source
+      if (!file && !useGlobalSheet) {
+        alert("Please upload a heat sheet or use the shared one first.");
+        swimmerSelect.value = "";
+        return;
+      }
+
+      currentSwimmerName = swimmerName;
+      statusEl.textContent = "Loading events for " + swimmerName + "...";
+
+      const fd = new FormData();
+      fd.append("swimmer_name", swimmerName);
+      if (!appendSourceToFormData(fd)) {
+        statusEl.textContent = "No heat sheet source.";
+        return;
+      }
+
+      try {
+        const res = await fetch("/extract", {
+          method: "POST",
+          body: fd
+        });
+        if (!res.ok) throw new Error("Error loading events");
+        const data = await res.json();
+        const events = data.events || [];
+        currentEvents = events;
+
+        previewBox.style.display = "block";
+        previewContent.innerHTML = "";
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
+
+        const saved = loadResultsFromStorage(swimmerName);
+
+        if (events.length === 0) {
+          previewContent.innerHTML = '<p class="muted">No events found for this swimmer.</p>';
+          statusEl.textContent = "No events found.";
+          return;
+        }
+
+        events.forEach((ev) => {
+          const totalHeats = ev.total_heats ? ev.total_heats : "?";
+          const evId = `event-${ev.event_number}-${ev.heat}`;
+          const savedTime = saved[evId] || "";
+          const div = document.createElement("div");
+          div.className = "event";
+          div.innerHTML = `
+            <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
+            <div>
+              Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> |
+              Lane: <b>${ev.lane ?? ""}</b> |
+              Seed: <b>${ev.seed_time ?? ""}</b>
+            </div>
+            <div style="margin-top:0.4rem;">
+              Final time (enter after race):
+              <input type="text" data-event-id="${evId}"
+                value="${savedTime}"
+                placeholder="e.g. 46.80 or 1:05.32"
+                style="max-width:160px;" />
+            </div>
+          `;
+          previewContent.appendChild(div);
+        });
+
+        statusEl.textContent = "Preview ready. Enter times after each event.";
+        renderResultsTable();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error loading swimmer events.";
+      }
+    });
+
+    previewContent.addEventListener("input", (e) => {
+      if (e.target && e.target.matches("input[data-event-id]")) {
+        const evId = e.target.getAttribute("data-event-id");
+        const val = e.target.value.trim();
+        const saved = loadResultsFromStorage(currentSwimmerName);
+        saved[evId] = val;
+        saveResultsToStorage(currentSwimmerName, saved);
+        renderResultsTable();
+      }
+    });
+
+    function timeToSeconds(t) {
+      if (!t) return null;
+      t = t.trim();
+      if (!t) return null;
+      if (t.includes(":")) {
+        const parts = t.split(":");
+        if (parts.length === 2) {
+          const mins = parseInt(parts[0], 10);
+          const secs = parseFloat(parts[1]);
+          if (isNaN(mins) || isNaN(secs)) return null;
+          return mins * 60 + secs;
+        }
+      }
+      const num = parseFloat(t);
+      if (isNaN(num)) return null;
+      return num;
+    }
+
+    function renderResultsTable() {
+      if (!currentSwimmerName || currentEvents.length === 0) return;
+      const saved = loadResultsFromStorage(currentSwimmerName);
+      let hasAny = false;
+      let html = `<table class="results-table">
+        <tr style="background:#eaf0ff;">
+          <th style="text-align:left;">Event</th>
+          <th>Seed</th>
+          <th>Final</th>
+          <th>Diff</th>
+        </tr>
+      `;
+      currentEvents.forEach((ev) => {
+        const evId = `event-${ev.event_number}-${ev.heat}`;
+        const finalTime = saved[evId] || "";
+        const seedTime = ev.seed_time || "";
+        if (finalTime) hasAny = true;
+        let diffText = "";
+        if (seedTime && finalTime) {
+          const s = timeToSeconds(seedTime);
+          const f = timeToSeconds(finalTime);
+          if (s !== null && f !== null) {
+            const diff = f - s;
+            diffText = (diff >= 0 ? "+" : "") + diff.toFixed(2) + "s";
+          }
+        }
+        html += `
+          <tr>
+            <td>#${ev.event_number} – ${ev.event_name}</td>
+            <td style="text-align:center;">${seedTime}</td>
+            <td style="text-align:center;">${finalTime}</td>
+            <td style="text-align:center;">${diffText}</td>
+          </tr>
+        `;
+      });
+      html += `</table>`;
+
+      if (hasAny) {
+        resultsBox.style.display = "block";
+        resultsContent.innerHTML = html;
+      } else {
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
+      }
+    }
+
+    // Download results PDF
+    downloadResultsBtn.addEventListener("click", async () => {
+      if (!currentSwimmerName || currentEvents.length === 0) return;
+      const saved = loadResultsFromStorage(currentSwimmerName);
+      const payload = currentEvents.map((ev) => {
+        const evId = `event-${ev.event_number}-${ev.heat}`;
+        return {
+          event_number: ev.event_number,
+          event_name: ev.event_name,
+          heat: ev.heat,
+          total_heats: ev.total_heats || null,
+          lane: ev.lane || null,
+          seed_time: ev.seed_time || "",
+          final_time: saved[evId] || ""
+        };
+      });
+      const fd = new FormData();
+      fd.append("swimmer_name", currentSwimmerName);
+      fd.append("results_json", JSON.stringify(payload));
+      try {
+        const res = await fetch("/generate-results-pdf", {
+          method: "POST",
+          body: fd
+        });
+        if (!res.ok) throw new Error("PDF failed");
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = currentSwimmerName.replace(/\s+/g, "_") + "_results.pdf";
+        a.click();
+      } catch (err) {
+        alert("Could not download results PDF.");
+      }
+    });
+
+    // Free schedule PDF
+    submitBtn.addEventListener("click", async () => {
+      const swimmerName = swimmerSelect.value;
+      if (!swimmerName) {
+        statusEl.textContent = "Please select a swimmer.";
+        return;
+      }
+      // require heat sheet
+      const file = fileInput.files[0];
+      if (!file && !useGlobalSheet) {
+        alert("Please upload a heat sheet or use the shared sheet first.");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.classList.remove("success");
+      submitBtn.textContent = "Generating...";
+
+      const fd = new FormData();
+      fd.append("swimmer_name", swimmerName);
+      if (!appendSourceToFormData(fd)) {
+        statusEl.textContent = "No heat sheet source.";
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Generate Schedule PDF";
+        return;
+      }
+
+      try {
+        const res = await fetch("/generate-pdf", {
+          method: "POST",
+          body: fd
+        });
+        if (!res.ok) throw new Error("PDF generation failed");
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
+        a.click();
+        submitBtn.classList.add("success");
+        submitBtn.textContent = "Schedule Ready ✓";
+        statusEl.textContent = "PDF downloaded successfully.";
+        setTimeout(() => {
+          submitBtn.classList.remove("success");
+          submitBtn.textContent = "Generate Schedule PDF";
+        }, 2500);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = "Error generating PDF.";
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    // === PRO / PREMIUM UNLOCK ===
+    premiumBtn.addEventListener("click", () => {
+      const code = premiumInput.value.trim();
+      premiumStatus.style.display = "none";
+      premiumStatus.textContent = "";
+      if (!code) return;
+      if (code === PRO_PIN) {
+        premiumFeatures.style.display = "block";
+        premiumCard.style.display = "none";
+        localStorage.setItem(LS_PRO_OK, "yes");
+        localStorage.setItem(LS_FREE_OK, "yes");
+      } else {
+        premiumStatus.textContent = "Invalid Pro PIN.";
+        premiumStatus.style.display = "block";
+      }
+    });
+
+    // === PRO: PREVIEW / DOWNLOAD TEAM PDF ===
+    if (proPreviewBtn) {
+      proPreviewBtn.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+        if (!file && !useGlobalSheet) {
+          alert("Upload a heat sheet PDF or use the shared one first.");
+          return;
+        }
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter((opt) => opt.selected)
+          .map((opt) => opt.value);
+
+        if (selected.length === 0) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        const combined = [];
+        const fetches = selected.map((name) => {
+          const fd = new FormData();
+          fd.append("swimmer_name", name);
+          if (!appendSourceToFormData(fd)) return null;
+          return { name, fd };
+        }).filter(Boolean);
+
+        try {
+          const results = await Promise.all(
+            fetches.map((item) =>
+              fetch("/extract", {
+                method: "POST",
+                body: item.fd
+              }).then((res) => {
+                if (!res.ok) throw new Error("extract failed");
+                return res.json().then((data) => ({
+                  name: item.name,
+                  events: data.events || []
+                }));
+              })
+            )
+          );
+
+          results.forEach((swObj) => {
+            swObj.events.forEach((ev) => {
+              combined.push({
+                swimmer: swObj.name,
+                event_number: ev.event_number,
+                event_name: ev.event_name,
+                heat: ev.heat,
+                total_heats: ev.total_heats,
+                lane: ev.lane,
+                seed_time: ev.seed_time
+              });
+            });
+          });
+
+          const order = proOrderBy ? proOrderBy.value : "swimmer";
+
+          if (order === "event") {
+            combined.sort((a, b) => {
+              if (a.event_number !== b.event_number) {
+                return a.event_number - b.event_number;
+              }
+              const ah = a.heat || 0;
+              const bh = b.heat || 0;
+              if (ah !== bh) return ah - bh;
+              return a.swimmer.localeCompare(b.swimmer);
+            });
+          } else {
+            combined.sort((a, b) => {
+              const s = a.swimmer.localeCompare(b.swimmer);
+              if (s !== 0) return s;
+              if (a.event_number !== b.event_number) {
+                return a.event_number - b.event_number;
+              }
+              const ah = a.heat || 0;
+              const bh = b.heat || 0;
+              return ah - bh;
+            });
+          }
+
+          if (combined.length === 0) {
+            proPreviewContent.innerHTML =
+              '<p class="muted">No events found for selected swimmers.</p>';
+          } else {
+            let html = "";
+            combined.forEach((item) => {
+              const totalHeatsText = item.total_heats ? (" of " + item.total_heats) : "";
+              const lane = item.lane ? item.lane : "";
+              const seed = item.seed_time ? item.seed_time : "";
+              html += `
+                <div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
+                  <div style="font-weight:bold;">${item.swimmer}</div>
+                  <div>Event #${item.event_number} – ${item.event_name}</div>
+                  <div style="font-size:0.8rem; color:#444;">
+                    Heat: ${item.heat}${totalHeatsText} |
+                    Lane: ${lane} |
+                    Seed: ${seed}
+                  </div>
+                </div>
+              `;
+            });
+            proPreviewContent.innerHTML = html;
+          }
+          proPreviewBox.style.display = "block";
+        } catch (err) {
+          console.error(err);
+          alert("Could not load combined preview.");
+        }
+      });
+    }
+
+    if (proDownloadBtn) {
+      proDownloadBtn.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+        if (!file && !useGlobalSheet) {
+          alert("Upload a heat sheet PDF or use the shared one first.");
+          return;
+        }
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter((opt) => opt.selected)
+          .map((opt) => opt.value);
+
+        if (selected.length === 0) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        const fd = new FormData();
+        fd.append("swimmers_json", JSON.stringify(selected));
+        const order = proOrderBy ? proOrderBy.value : "swimmer";
+        fd.append("order_by", order);
+        if (!appendSourceToFormData(fd)) return;
+
+        try {
+          const res = await fetch("/generate-team-pdf", {
+            method: "POST",
+            body: fd
+          });
+          if (!res.ok) throw new Error("PDF failed");
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "team_schedule.pdf";
+          a.click();
+        } catch (err) {
+          console.error(err);
+          alert("Could not download team PDF.");
+        }
+      });
+    }
+
+    // === ADMIN PANEL ===
+    adminToggle.addEventListener("click", () => {
+      if (adminPanel.style.display === "none" || adminPanel.style.display === "") {
+        adminPanel.style.display = "block";
+        adminToggle.textContent = "Hide admin panel";
+      } else {
+        adminPanel.style.display = "none";
+        adminToggle.textContent = "Show admin panel";
+      }
+    });
+
+    adminUploadBtn.addEventListener("click", async () => {
+      const adminPin = adminPinInput.value.trim();
+      const file = adminFileInput.files[0];
+      adminUploadStatus.textContent = "";
+      if (!adminPin) {
+        adminUploadStatus.textContent = "Please enter the admin PIN.";
+        return;
+      }
+      if (!file) {
+        adminUploadStatus.textContent = "Please choose a heat sheet PDF.";
+        return;
+      }
+      const fd = new FormData();
+      fd.append("admin_pin", adminPin);
+      fd.append("file", file);
+      adminUploadBtn.disabled = true;
+      adminUploadStatus.textContent = "Uploading shared heat sheet...";
+
+      try {
+        const res = await fetch("/admin-upload-heat-sheet", {
+          method: "POST",
+          body: fd
+        });
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || "Upload failed");
+        }
+        const data = await res.json();
+        adminUploadStatus.textContent =
+          `Shared heat sheet uploaded: ${data.filename} (at ${data.uploaded_at})`;
+        // Refresh global status for parents
+        checkGlobalHeatSheetStatus();
+      } catch (err) {
+        console.error(err);
+        adminUploadStatus.textContent = "Error uploading shared heat sheet.";
+      } finally {
+        adminUploadBtn.disabled = false;
+      }
+    });
+
+    // === INIT ===
+    restoreFromLocalStorage();
+  </script>
+</body>
+</html>

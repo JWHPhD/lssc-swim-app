@@ -85,28 +85,24 @@ def premium_auth(code: str = Form(...)):
 # --------------------------------------------------------------------------------------
 @app.post("/list-swimmers")
 async def list_swimmers(file: UploadFile = File(...)):
-    content = await _read_upload(file)
-    text = _extract_text(file.content_type, content)
-    events = _parse_heat_sheet(text)
+    events = await _events_from_upload(file)
     swimmers = _unique_swimmers(events)
     return {"count": len(swimmers), "swimmers": swimmers}
 
 @app.post("/extract")
 async def extract_swimmer_events(swimmer_name: str = Form(...), file: UploadFile = File(...)):
-    content = await _read_upload(file)
-    text = _extract_text(file.content_type, content)
-    events = _parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
-    matched = [e for e in events if e.get("swimmer_name") and swimmer_name.lower() in e["swimmer_name"].lower()]
+    events = await _events_from_upload(file)
+    matched = [
+        e for e in events
+        if e.get("swimmer_name") and swimmer_name.lower() in e["swimmer_name"].lower()
+    ]
     return {"swimmer": swimmer_name, "count": len(matched), "events": matched}
 
 @app.post("/extract-all-events")
 async def extract_all_events(file: UploadFile = File(...)):
-    content = await _read_upload(file)
-    text = _extract_text(file.content_type, content)
-    events = _parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+    events = await _events_from_upload(file)
     return {"count": len(events), "events": events}
+
 
 
 # --------------------------------------------------------------------------------------
@@ -114,13 +110,17 @@ async def extract_all_events(file: UploadFile = File(...)):
 # --------------------------------------------------------------------------------------
 @app.post("/generate-pdf")
 async def generate_swimmer_pdf(swimmer_name: str = Form(...), file: UploadFile = File(...)):
-    content = await _read_upload(file)
-    text = _extract_text(file.content_type, content)
-    events = _parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
-    matched = [e for e in events if e.get("swimmer_name") and swimmer_name.lower() in e["swimmer_name"].lower()]
+    events = await _events_from_upload(file)
+    matched = [
+        e for e in events
+        if e.get("swimmer_name") and swimmer_name.lower() in e["swimmer_name"].lower()
+    ]
     path = _build_schedule_pdf(swimmer_name, matched)
-    return FileResponse(path, media_type="application/pdf", filename=f"{_safe(swimmer_name)}_schedule.pdf")
+    return FileResponse(
+        path,
+        media_type="application/pdf",
+        filename=f"{_safe(swimmer_name)}_schedule.pdf"
+    )
 
 @app.post("/generate-results-pdf")
 async def generate_results_pdf(swimmer_name: str = Form(...), results_json: str = Form(...)):
@@ -181,9 +181,7 @@ async def generate_team_pdf(
     except Exception:
         raise HTTPException(status_code=400, detail="Bad swimmers list")
 
-    content = await _read_upload(file)
-    text = _extract_text(file.content_type, content)
-    events = _parse_heat_sheet(text)
+    events = await _events_from_upload(file)
 
     combined = []
     for sw in swimmers:
@@ -245,10 +243,7 @@ async def timeline_estimate(
     seconds_between_heats: int = Form(20),
     seconds_between_events: int = Form(60),
 ):
-    content = await _read_upload(file)
-    text = _extract_text(file.content_type, content)
-    events = _parse_heat_sheet(text)
-    events = sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+    events = await _events_from_upload(file)
 
     # Build event->heat->durations using "first seed in heat" heuristic
     per_heat_seconds: Dict[Tuple[int, int], float] = {}
@@ -374,14 +369,59 @@ def _extract_text(content_type: str, content_bytes: bytes) -> str:
     except Exception:
         raise HTTPException(status_code=400, detail="Could not read PDF. Upload a standard PDF heat sheet.")
 
+async def _events_from_upload(file: UploadFile) -> List[Dict[str, Any]]:
+    """
+    Read an uploaded heat sheet PDF, extract text, parse events,
+    and return them sorted by (event_number, heat).
+    """
+    content = await _read_upload(file)
+    text = _extract_text(file.content_type, content)
+    events = _parse_heat_sheet(text)
+    return sorted(events, key=lambda e: (e["event_number"], e.get("heat") or 0))
+
 def _normalize(text: str) -> str:
-    text = re.sub(r"Heat\s+(\d+)\s+of\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)", r"#\3 \4\nHeat \1 of \2", text)
-    text = re.sub(r"Heat\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)", r"#\2 \3\nHeat \1", text)
+    """
+    Normalize different heat sheet layouts into a common line-based format.
+
+    Goals:
+    - Ensure each event header starts at the beginning of a line: "#<event_number> <event_name>"
+    - Ensure each heat header starts at the beginning of a line: "Heat <n>" or "Heat <n> of <total>"
+    This makes it easier for _parse_heat_sheet() to walk line by line.
+    """
+    # Pattern: "Heat 1 of 3 (#4 Mixed 12 & Under 50 Backstroke)"
+    #   -> "#4 Mixed 12 & Under 50 Backstroke\nHeat 1 of 3"
+    text = re.sub(
+        r"Heat\s+(\d+)\s+of\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
+        r"#\3 \4\nHeat \1 of \2",
+        text,
+    )
+    # Pattern: "Heat 1 (#4 Mixed 12 & Under 50 Backstroke)"
+    #   -> "#4 Mixed 12 & Under 50 Backstroke\nHeat 1"
+    text = re.sub(
+        r"Heat\s+(\d+)\s+\(#(\d+)\s+([^)]+)\)",
+        r"#\2 \3\nHeat \1",
+        text,
+    )
+    # Ensure event headers start a new line.
     text = re.sub(r"(?<!\n)(#\d+\s+)", r"\n\1", text)
+    # Ensure heat headers start a new line.
     text = re.sub(r"(?<!\n)(Heat\s+\d+)", r"\n\1", text)
     return text
 
+
 def _parse_heat_sheet(text: str) -> List[Dict[str, Any]]:
+    """
+    Parse a normalized heat sheet text into a flat list of entries.
+
+    Each returned dict has:
+      - event_number (int)
+      - event_name (str)
+      - heat (int)
+      - total_heats (int | None)
+      - lane (int | None)
+      - seed_time (str | None)
+      - swimmer_name (str)
+    """
     text = _normalize(text)
     lines = text.splitlines()
 
@@ -436,14 +476,17 @@ def _parse_heat_sheet(text: str) -> List[Dict[str, Any]]:
     return events
 
 def _lane_from_line(line: str) -> Optional[int]:
+    """Extract lane number from a heat sheet line (assumes lane is the last integer on the line)."""
     m = re.search(r"(\d+)\s*$", line)
     return int(m.group(1)) if m else None
 
 def _seed_from_line(line: str) -> Optional[str]:
+    """Extract seed time from a line, handling mm:ss.xx and ss.xx formats."""
     m = re.search(r"(\d+:\d+\.\d+|\d+\.\d+)", line)
     return m.group(1) if m else None
 
 def _name_from_line(line: str) -> Optional[str]:
+    """Extract swimmer name in 'Last, First [Middle/Initial]' format from a line."""
     m = re.search(r"([A-Za-z'\-]+,\s+[A-Za-z'\-]+(?:\s+[A-Za-z.]+)?)", line)
     return m.group(1).strip() if m else None
 

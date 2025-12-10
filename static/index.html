@@ -26,6 +26,10 @@
     .warn{ color:#b20000; font-size:0.9rem; }
     .row{ display:flex; gap:.8rem; flex-wrap:wrap; }
     .row > div{ flex:1 1 220px; min-width:220px; }
+    
+    .diff-better { color:#0a7a1f; font-weight:bold; }
+    .diff-slower { color:#b20000; font-weight:bold; }
+    .diff-same   { color:#333; }
 
     .preview{ background:#fff; padding:1rem; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
     .event{ border:1px solid #e1e1e1; border-radius:6px; padding:0.5rem 0.75rem; margin-bottom:0.5rem; background:#f9fbff; }
@@ -38,9 +42,54 @@
     table.timeline th, table.timeline td { border:1px solid #d0d0d0; padding:6px; }
     table.timeline th { background:#eaf0ff; text-align:left; }
     .toggle-row{ display:flex; align-items:center; gap:.5rem; margin-top:.2rem; }
+
+    /* Timeline row states */
+    .tl-past td {
+      color: #666;
+      text-decoration: line-through;
+    }
+    .tl-current td {
+      background: #e0f3ff;
+      border-left: 4px solid #007bff;
+      font-weight: bold;
+    }
+    .tl-upcoming td {
+      /* default style, kept for clarity */
+    }
+
+    /* Events starting soon (within ~15 minutes) */
+    .timeline-soon td {
+      background: #fff3cd;
+      border-bottom: 2px solid #ffb100;
+    }
+
+    /* Countdown display under the timeline */
+    .timeline-countdown {
+      font-size: 1rem;
+      font-weight: bold;
+      background: #fff3cd;
+      color: #333;
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid #ffda6a;
+      margin-top: 0.5rem;
+    }
+
+    /* countdown time portion will be red */
+    .countdown-time {
+      color: #cc0000;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
+  <!-- Developer / testing helper: reset this browser's SwimDay data -->
+  <div id="dev-reset" style="text-align:right; margin-bottom:0.5rem; font-size:0.85rem;">
+    <a href="#" id="reset-app-link" style="color:#004c97; text-decoration:underline;">
+      Reset this browser for testing
+    </a>
+  </div>
+
   <header>
     <img src="/static/logo.png" alt="Lakeshore Swim Club Logo" />
     <h1>Lakeshore Swim Club</h1>
@@ -119,10 +168,16 @@
         <h4 style="margin:0 0 .5rem 0;">Combined Event Preview</h4>
         <div id="pro-preview-content" style="max-height:260px; overflow-y:auto;"></div>
       </div>
+
+      <div id="pro-results-box" class="preview" style="margin-top:0.8rem; display:none;">
+        <h4 style="margin:0 0 .5rem 0;">Results vs Seed (selected swimmers)</h4>
+        <div id="pro-results-content"></div>
+        <button id="pro-download-results-btn" style="margin-top:0.7rem;">Download Results PDFs</button>
+      </div>
     </div>
 
     <!-- Family Timeline (RESTORED) -->
-    <div id="timeline-card" class="card">
+    <div id="timeline-card" class="card" style="display:none;">
       <h3>Family Timeline</h3>
       <p class="muted">Enter the meet start time (format: <b>hh:mm AM/PM</b>), pick one or more swimmers, then build the timeline. You can later update using the current event/heat.</p>
 
@@ -150,8 +205,10 @@
       </div>
 
       <div id="timeline-output" style="margin-top:0.8rem;"></div>
+      <div id="timeline-countdown" class="timeline-countdown" style="margin-top:0.5rem;"></div>
 
       <h4 style="margin-top:1rem;">Update Timeline (current progress)</h4>
+
       <div class="row">
         <div>
           <label for="timeline-current-event">Current Event #</label>
@@ -167,9 +224,13 @@
     </div>
 
     <!-- Crowd Assist -->
-    <div id="crowd-card" class="card">
+    <div id="crowd-card" class="card" style="display:none;">
       <h3>Crowd Assist (optional)</h3>
-      <p class="muted">Share meet progress with other parents using a short meet code. Updates are opt-in per parent.</p>
+      <p class="muted">
+        Share meet progress with other parents using a short meet code (e.g. LSSC-JUNE15).
+        Everyone using the same code can see updates and choose whether to apply them to their own timeline.
+      </p>
+
       <div class="row">
         <div><label for="crowd-meet-code">Meet Code</label><input id="crowd-meet-code" type="text" placeholder="e.g. LSSC-NOV02" /></div>
         <div><label for="crowd-display-name">Your name</label><input id="crowd-display-name" type="text" placeholder="e.g. Joe" /></div>
@@ -193,6 +254,35 @@
   </footer>
 
   <script>
+    // ---------- Reset this browser for testing ----------
+    const resetLink = document.getElementById("reset-app-link");
+    if (resetLink) {
+      resetLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        const ok = confirm(
+          "This will reset SwimDay Simplified on this browser:\n\n" +
+          "- Clear saved PIN access\n" +
+          "- Clear premium/pro unlock\n" +
+          "- Clear saved results and Crowd Assist settings\n\n" +
+          "Continue?"
+        );
+        if (!ok) return;
+
+        // Remove only keys used by SwimDay (safer than localStorage.clear()).
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("lssc-")) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+        // Reload so the app starts as if it's never been opened
+        location.reload();
+      });
+    }
+
     // ---------- PIN ----------
     const pinCard = document.getElementById("pin-card");
     const appContent = document.getElementById("app-content");
@@ -201,17 +291,24 @@
     const pinError = document.getElementById("pin-error");
 
     if (localStorage.getItem("lssc-pin-ok") === "yes") {
-      pinCard.style.display = "none"; appContent.style.display = "block";
+      pinCard.style.display = "none";
+      appContent.style.display = "block";
     }
     pinBtn.addEventListener("click", async () => {
-      const pin = pinInput.value.trim(); if (!pin) return;
-      const fd = new FormData(); fd.append("pin", pin);
+      const pin = pinInput.value.trim();
+      if (!pin) return;
+      const fd = new FormData();
+      fd.append("pin", pin);
       try {
-        const r = await fetch("/auth", { method:"POST", body:fd });
+        const r = await fetch("/auth", { method: "POST", body: fd });
         if (!r.ok) throw 0;
-        localStorage.setItem("lssc-pin-ok","yes");
-        pinCard.style.display="none"; appContent.style.display="block"; pinError.style.display="none";
-      } catch { pinError.style.display="block"; }
+        localStorage.setItem("lssc-pin-ok", "yes");
+        pinCard.style.display = "none";
+        appContent.style.display = "block";
+        pinError.style.display = "none";
+      } catch {
+        pinError.style.display = "block";
+      }
     });
 
     // ---------- Premium Unlock ----------
@@ -221,15 +318,34 @@
     const premiumBtn = document.getElementById("premium-btn");
     const premiumStatus = document.getElementById("premium-status");
     const freeSection = document.getElementById("free-section");
-    function showProUI(){ premiumFeatures.style.display="block"; premiumCard.style.display="none"; if (freeSection) freeSection.style.display="none"; }
-    if (localStorage.getItem("lssc-premium-ok")==="yes") showProUI();
+    const timelineCard = document.getElementById("timeline-card");
+    const crowdCard = document.getElementById("crowd-card");
+
+    function showProUI() {
+      if (premiumFeatures) premiumFeatures.style.display = "block";
+      if (premiumCard) premiumCard.style.display = "none";
+      if (freeSection) freeSection.style.display = "none";
+      if (timelineCard) timelineCard.style.display = "block";
+      if (crowdCard) crowdCard.style.display = "block";
+    }
+
+    if (localStorage.getItem("lssc-premium-ok") === "yes") showProUI();
+
     premiumBtn.addEventListener("click", async () => {
-      const code = premiumInput.value.trim(); if (!code) return;
-      const fd = new FormData(); fd.append("code", code);
-      try{
-        const r = await fetch("/premium-auth",{method:"POST", body:fd}); if(!r.ok) throw 0;
-        localStorage.setItem("lssc-premium-ok","yes"); premiumStatus.style.display="none"; showProUI();
-      }catch{ premiumStatus.textContent="Invalid premium code."; premiumStatus.style.display="block"; }
+      const code = premiumInput.value.trim();
+      if (!code) return;
+      const fd = new FormData();
+      fd.append("code", code);
+      try {
+        const r = await fetch("/premium-auth", { method: "POST", body: fd });
+        if (!r.ok) throw 0;
+        localStorage.setItem("lssc-premium-ok", "yes");
+        premiumStatus.style.display = "none";
+        showProUI();
+      } catch {
+        premiumStatus.textContent = "Invalid premium code.";
+        premiumStatus.style.display = "block";
+      }
     });
 
     // ---------- Common refs ----------
@@ -244,183 +360,919 @@
     const downloadResultsBtn = document.getElementById("downloadResultsBtn");
     const btn = document.getElementById("submitBtn");
 
+    // Enable/disable key feature buttons based on whether a heat sheet is loaded
+    function setFeatureButtonsEnabled(enabled) {
+      const ids = [
+        "submitBtn",              // Free: Generate Schedule
+        "timeline-build-btn",     // Timeline: Build Timeline
+        "timeline-apply-btn",     // Timeline: Apply update
+        "pro-preview-team",       // Pro: Preview Combined Events
+        "pro-download-team-pdf",  // Pro: Download Team Schedule PDF
+        "pro-download-results-btn"// Pro: Download Results PDFs
+      ];
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.disabled = !enabled;
+        }
+      });
+    }
+
+    // On first load, keep features disabled until a heat sheet is successfully read
+    setFeatureButtonsEnabled(false);
+
     let currentEvents = [];
     let currentSwimmerName = "";
     let currentSwimmerList = [];
-    let allEvents = []; // NEW: full meet events for timeline
+    let allEvents = []; // full meet events for timeline and previews
 
-    function storageKeyFor(sw){ return "lssc-results-"+sw.toLowerCase().replace(/\s+/g,"_"); }
-    function loadResults(sw){ const raw = localStorage.getItem(storageKeyFor(sw)); if(!raw) return {}; try{ return JSON.parse(raw);}catch{return{}} }
-    function saveResults(sw,obj){ localStorage.setItem(storageKeyFor(sw), JSON.stringify(obj)); }
+    const HEAT_DATA_KEY = "lssc-heat-data";
+
+    function saveHeatData(swimmers, events) {
+      try {
+        const payload = { swimmers, events };
+        localStorage.setItem(HEAT_DATA_KEY, JSON.stringify(payload));
+      } catch (e) {
+        // ignore storage errors, app still works without persistence
+      }
+    }
+
+    function restoreHeatData() {
+      try {
+        const raw = localStorage.getItem(HEAT_DATA_KEY);
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        if (!payload || !Array.isArray(payload.swimmers) || !Array.isArray(payload.events)) return;
+
+        currentSwimmerList = payload.swimmers;
+        allEvents = payload.events;
+
+        // Rebuild swimmer dropdowns
+        if (swimmerSelect) {
+          swimmerSelect.innerHTML = "";
+          currentSwimmerList.forEach(n => {
+            const o = document.createElement("option");
+            o.value = n;
+            o.textContent = n;
+            swimmerSelect.appendChild(o);
+          });
+        }
+
+        const proMultiEl = document.getElementById("pro-multi-swimmers");
+        if (proMultiEl) {
+          proMultiEl.innerHTML = "";
+          currentSwimmerList.forEach(n => {
+            const o = document.createElement("option");
+            o.value = n;
+            o.textContent = n;
+            proMultiEl.appendChild(o);
+          });
+        }
+
+        const tlMulti = document.getElementById("timeline-swimmers");
+        if (tlMulti) {
+          tlMulti.innerHTML = "";
+          currentSwimmerList.forEach(n => {
+            const o = document.createElement("option");
+            o.value = n;
+            o.textContent = n;
+            tlMulti.appendChild(o);
+          });
+        }
+
+        // Rebuild event/heat dropdowns
+        buildEventHeatDropdowns();
+
+        statusEl.textContent = "Restored last heat sheet from this browser. You can pick a swimmer or build a family timeline.";
+        setFeatureButtonsEnabled(true);
+
+        // Auto-preview the first swimmer if available
+        if (currentSwimmerList.length > 0 && swimmerSelect) {
+          swimmerSelect.value = currentSwimmerList[0];
+          swimmerSelect.dispatchEvent(new Event("change"));
+        }
+
+        // Restore any saved timeline settings (start time, selected swimmers, current event/heat)
+        restoreTimelineState();
+
+      } catch (e) {
+        // ...
+      }
+    }
+
+    function storageKeyFor(sw) {
+      return "lssc-results-" + sw.toLowerCase().replace(/\s+/g, "_");
+    }
+    function loadResults(sw) {
+      const raw = localStorage.getItem(storageKeyFor(sw));
+      if (!raw) return {};
+      try { return JSON.parse(raw); } catch { return {}; }
+    }
+    function saveResults(sw, obj) {
+      localStorage.setItem(storageKeyFor(sw), JSON.stringify(obj));
+    }
 
     // ---------- Upload → load swimmers and all events ----------
     fileInput.addEventListener("change", async () => {
-      const file = fileInput.files[0]; if(!file) return;
-      if (fileNeededNote) fileNeededNote.style.display="none";
-      statusEl.textContent="Reading heat sheet…";
-      previewBox.style.display="none"; resultsBox.style.display="none"; previewContent.innerHTML=""; resultsContent.innerHTML="";
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      // While loading a new heat sheet, disable actions
+      setFeatureButtonsEnabled(false);
+
+      if (fileNeededNote) fileNeededNote.style.display = "none";
+      statusEl.textContent = "Reading heat sheet…";
+      previewBox.style.display = "none";
+      resultsBox.style.display = "none";
+      previewContent.innerHTML = "";
+      resultsContent.innerHTML = "";
 
       // swimmers
-      const fd = new FormData(); fd.append("file", file);
+      const fd = new FormData();
+      fd.append("file", file);
       try {
-        const res = await fetch("/list-swimmers",{method:"POST", body:fd});
+        const res = await fetch("/list-swimmers", { method: "POST", body: fd });
         if (!res.ok) throw 0;
         const data = await res.json();
         currentSwimmerList = data.swimmers || [];
         swimmerSelect.innerHTML = "";
-        currentSwimmerList.forEach(n => { const o=document.createElement("option"); o.value=n; o.textContent=n; swimmerSelect.appendChild(o); });
+        currentSwimmerList.forEach(n => {
+          const o = document.createElement("option");
+          o.value = n;
+          o.textContent = n;
+          swimmerSelect.appendChild(o);
+        });
 
         // fill pro + timeline selects
-        const proMulti = document.getElementById("pro-multi-swimmers");
-        if (proMulti) {
-          proMulti.innerHTML = "";
-          currentSwimmerList.forEach(n => { const o=document.createElement("option"); o.value=n; o.textContent=n; proMulti.appendChild(o); });
+        const proMultiEl = document.getElementById("pro-multi-swimmers");
+        if (proMultiEl) {
+          proMultiEl.innerHTML = "";
+          currentSwimmerList.forEach(n => {
+            const o = document.createElement("option");
+            o.value = n;
+            o.textContent = n;
+            proMultiEl.appendChild(o);
+          });
         }
         const tlMulti = document.getElementById("timeline-swimmers");
         tlMulti.innerHTML = "";
-        currentSwimmerList.forEach(n => { const o=document.createElement("option"); o.value=n; o.textContent=n; tlMulti.appendChild(o); });
+        currentSwimmerList.forEach(n => {
+          const o = document.createElement("option");
+          o.value = n;
+          o.textContent = n;
+          tlMulti.appendChild(o);
+        });
 
-        statusEl.textContent="Swimmers loaded. Loading full meet…";
+        statusEl.textContent = "Swimmers loaded. Loading full meet…";
 
         // all events (for timeline/event dropdowns)
-        const fd2 = new FormData(); fd2.append("file", file);
-        const res2 = await fetch("/extract-all-events",{method:"POST", body:fd2});
+        const fd2 = new FormData();
+        fd2.append("file", file);
+        const res2 = await fetch("/extract-all-events", { method: "POST", body: fd2 });
         if (!res2.ok) throw 0;
         const data2 = await res2.json();
         allEvents = data2.events || [];
-        statusEl.textContent="Ready. Pick a swimmer or build a family timeline.";
+        statusEl.textContent = "Ready. Pick a swimmer or build a family timeline.";
 
         // populate current event/heat dropdowns
         buildEventHeatDropdowns();
 
+        // auto-select and preview the first swimmer (if any)
+        if (currentSwimmerList.length > 0 && swimmerSelect) {
+          swimmerSelect.value = currentSwimmerList[0];
+          swimmerSelect.dispatchEvent(new Event("change"));
+        }
+
+        // now that everything loaded successfully, enable feature buttons
+        setFeatureButtonsEnabled(true);
+        
+        // Save meet data so it can be restored after a refresh
+        saveHeatData(currentSwimmerList, allEvents);
+
       } catch {
-        statusEl.textContent="Error reading heat sheet.";
-        swimmerSelect.innerHTML='<option value="">-- Error --</option>';
+        statusEl.textContent = "Error reading heat sheet.";
+        swimmerSelect.innerHTML = '<option value="">-- Error --</option>';
       }
     });
 
     // ---------- Free preview ----------
     swimmerSelect.addEventListener("change", async () => {
-      const file = fileInput.files[0];
       const swimmerName = swimmerSelect.value;
-      if (!file || !swimmerName) return;
+      if (!swimmerName) return;
       currentSwimmerName = swimmerName;
-      statusEl.textContent = "Loading events for " + swimmerName + "…";
-      const fd = new FormData(); fd.append("swimmer_name", swimmerName); fd.append("file", file);
-      try {
-        const r = await fetch("/extract",{method:"POST", body:fd}); if(!r.ok) throw 0;
-        const data = await r.json();
-        currentEvents = data.events || [];
+
+      const file = fileInput.files[0];
+
+      // If we no longer have the original PDF file but we have saved events,
+      // build the preview purely from the saved allEvents.
+      if (!file && allEvents.length > 0) {
+        statusEl.textContent = "Showing events from saved heat sheet for " + swimmerName + "…";
+        currentEvents = allEvents.filter(ev =>
+          ev.swimmer_name && ev.swimmer_name.toLowerCase().includes(swimmerName.toLowerCase())
+        );
+
         previewBox.style.display = "block";
-        previewContent.innerHTML = ""; resultsBox.style.display="none"; resultsContent.innerHTML="";
+        previewContent.innerHTML = "";
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
 
         const saved = loadResults(swimmerName);
-        if (currentEvents.length===0){ previewContent.innerHTML='<p class="muted">No events found.</p>'; statusEl.textContent="No events."; return;}
-        currentEvents.forEach(ev=>{
+        if (currentEvents.length === 0) {
+          previewContent.innerHTML = '<p class="muted">No events found.</p>';
+          statusEl.textContent = "No events.";
+          return;
+        }
+
+        currentEvents.forEach(ev => {
           const totalHeats = ev.total_heats ? ev.total_heats : "?";
           const evId = `event-${ev.event_number}-${ev.heat}`;
           const savedTime = saved[evId] || "";
-          const d = document.createElement("div"); d.className="event";
+          const d = document.createElement("div");
+          d.className = "event";
           d.innerHTML = `
             <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
             <div>Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> | Lane: <b>${ev.lane ?? ""}</b> | Seed: <b>${ev.seed_time ?? ""}</b></div>
             <div style="margin-top:0.4rem;">Final time: <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" /></div>`;
           previewContent.appendChild(d);
         });
-        statusEl.textContent="Preview ready. Enter times after races.";
-        renderResultsTable();
-      } catch { statusEl.textContent="Error loading swimmer events."; }
-    });
 
-    document.getElementById("previewContent").addEventListener("input",(e)=>{
-      if (e.target && e.target.matches("input[data-event-id]")){
-        const evId = e.target.getAttribute("data-event-id");
-        const val = e.target.value.trim();
-        const saved = loadResults(currentSwimmerName);
-        saved[evId] = val; saveResults(currentSwimmerName, saved); renderResultsTable();
+        statusEl.textContent = "Preview ready. Enter times after races.";
+        renderResultsTable();
+        return;
+      }
+
+      // Normal path: we have the file, call the backend
+      if (!file) return;
+
+      statusEl.textContent = "Loading events for " + swimmerName + "…";
+      const fd = new FormData();
+      fd.append("swimmer_name", swimmerName);
+      fd.append("file", file);
+
+      try {
+        const r = await fetch("/extract", { method: "POST", body: fd });
+        if (!r.ok) throw 0;
+        const data = await r.json();
+        currentEvents = data.events || [];
+
+        previewBox.style.display = "block";
+        previewContent.innerHTML = "";
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
+
+        const saved = loadResults(swimmerName);
+        if (currentEvents.length === 0) {
+          previewContent.innerHTML = '<p class="muted">No events found.</p>';
+          statusEl.textContent = "No events.";
+          return;
+        }
+
+        currentEvents.forEach(ev => {
+          const totalHeats = ev.total_heats ? ev.total_heats : "?";
+          const evId = `event-${ev.event_number}-${ev.heat}`;
+          const savedTime = saved[evId] || "";
+          const d = document.createElement("div");
+          d.className = "event";
+          d.innerHTML = `
+            <div class="event-title">Event #${ev.event_number} – ${ev.event_name}</div>
+            <div>Heat: <b>${ev.heat}</b> of <b>${totalHeats}</b> | Lane: <b>${ev.lane ?? ""}</b> | Seed: <b>${ev.seed_time ?? ""}</b></div>
+            <div style="margin-top:0.4rem;">Final time: <input type="text" data-event-id="${evId}" value="${savedTime}" placeholder="e.g. 46.80 or 1:05.32" style="max-width:160px;" /></div>`;
+          previewContent.appendChild(d);
+        });
+
+        statusEl.textContent = "Preview ready. Enter times after races.";
+        renderResultsTable();
+      } catch {
+        statusEl.textContent = "Error loading swimmer events.";
       }
     });
 
-    function t2s(t){ if(!t) return null; t=t.trim(); if(t.includes(":")){ const [m,s]=t.split(":"); return parseInt(m,10)*60+parseFloat(s);} const n=parseFloat(t); return isNaN(n)?null:n; }
-    function renderResultsTable(){
-      if (!currentSwimmerName || currentEvents.length===0) return;
-      const saved = loadResults(currentSwimmerName); let has=false;
-      let html = `<table class="results-table" style="width:100%; border-collapse:collapse;"><tr style="background:#eaf0ff;"><th style="text-align:left;">Event</th><th>Seed</th><th>Final</th><th>Diff</th></tr>`;
-      currentSwimmerName && currentEvents.forEach(ev=>{
-        const evId = `event-${ev.event_number}-${ev.heat}`; const finalT = saved[evId] || ""; const seedT = ev.seed_time || ""; if(finalT) has=true;
-        let diff=""; if(seedT && finalT){ const s=t2s(seedT), f=t2s(finalT); if(s!=null && f!=null){ const d=f-s; diff=(d>=0?"+":"")+d.toFixed(2)+"s";}}
-        html += `<tr><td>#${ev.event_number} – ${ev.event_name}</td><td style="text-align:center;">${seedT}</td><td style="text-align:center;">${finalT}</td><td style="text-align:center;">${diff}</td></tr>`;
-      });
-      html += `</table>`;
-      if (has){ resultsBox.style.display="block"; resultsContent.innerHTML=html; } else { resultsBox.style.display="none"; resultsContent.innerHTML=""; }
+    document.getElementById("previewContent").addEventListener("input", (e) => {
+      if (e.target && e.target.matches("input[data-event-id]")) {
+        const evId = e.target.getAttribute("data-event-id");
+        const val = e.target.value.trim();
+        const saved = loadResults(currentSwimmerName);
+        saved[evId] = val;
+        saveResults(currentSwimmerName, saved);
+
+        // Update the single-swimmer results table (free view)
+        renderResultsTable();
+
+        // If the Pro Results box is visible and this swimmer is part of the selection,
+        // refresh the multi-swimmer results as well.
+        if (typeof refreshProResultsIfNeeded === "function") {
+          refreshProResultsIfNeeded();
+        }
+      }
+    });
+
+    function t2s(t) {
+      if (!t) return null;
+      t = t.trim();
+      if (t.includes(":")) {
+        const [m, s] = t.split(":");
+        return parseInt(m, 10) * 60 + parseFloat(s);
+      }
+      const n = parseFloat(t);
+      return isNaN(n) ? null : n;
+    }
+    function computeDiffDisplay(seedT, finalT) {
+      if (!seedT || !finalT) return { text: "", className: "" };
+      const s = t2s(seedT);
+      const f = t2s(finalT);
+      if (s == null || f == null) return { text: "", className: "" };
+
+      const d = f - s;
+      const text = (d >= 0 ? "+" : "") + d.toFixed(2) + "s";
+
+      let cls = "diff-same";
+      if (d < 0) cls = "diff-better";
+      else if (d > 0) cls = "diff-slower";
+
+      return { text, className: cls };
     }
 
-    downloadResultsBtn.addEventListener("click", async ()=>{
-      if(!currentSwimmerName || currentEvents.length===0) return;
+    function computeDiff(seedT, finalT) {
+      if (!seedT || !finalT) return { text: "", cls: "" };
+      const s = t2s(seedT);
+      const f = t2s(finalT);
+      if (s == null || f == null) return { text: "", cls: "" };
+
+      const d = f - s;
+      const text = (d >= 0 ? "+" : "") + d.toFixed(2) + "s";
+
+      let cls = "";
+      if (d < 0) cls = "diff-better";
+      else if (d > 0) cls = "diff-slower";
+      else cls = "diff-same";
+
+      return { text, cls };
+    }
+
+    function renderResultsTable() {
+      if (!currentSwimmerName || currentEvents.length === 0) return;
       const saved = loadResults(currentSwimmerName);
-      const payload = currentEvents.map(ev=>{
-        const evId=`event-${ev.event_number}-${ev.heat}`;
-        return { event_number:ev.event_number, event_name:ev.event_name, heat:ev.heat, total_heats:ev.total_heats||null, lane:ev.lane||null, seed_time:ev.seed_time||"", final_time:saved[evId]||"" };
+      let has = false;
+
+      let html = `<table class="results-table" style="width:100%; border-collapse:collapse;">
+        <tr style="background:#eaf0ff;">
+          <th style="text-align:left;">Event</th>
+          <th>Seed</th>
+          <th>Final</th>
+          <th>Diff</th>
+        </tr>`;
+
+      currentEvents.forEach(ev => {
+        const evId = `event-${ev.event_number}-${ev.heat}`;
+        const finalT = saved[evId] || "";
+        const seedT = ev.seed_time || "";
+        if (finalT) has = true;
+
+        let diff = "";
+        let diffClass = "";
+
+        if (seedT && finalT) {
+          const s = t2s(seedT);
+          const f = t2s(finalT);
+          if (s != null && f != null) {
+            const d = f - s;
+            diff = (d >= 0 ? "+" : "") + d.toFixed(2) + "s";
+            if (d < 0) diffClass = "diff-better";
+            else if (d > 0) diffClass = "diff-slower";
+            else diffClass = "diff-same";
+          }
+        }
+
+        html += `
+          <tr>
+            <td>#${ev.event_number} – ${ev.event_name}</td>
+            <td style="text-align:center;">${seedT}</td>
+            <td style="text-align:center;">${finalT}</td>
+            <td style="text-align:center;" class="${diffClass}">${diff}</td>
+          </tr>`;
       });
-      const fd = new FormData(); fd.append("swimmer_name", currentSwimmerName); fd.append("results_json", JSON.stringify(payload));
-      try{ const r=await fetch("/generate-results-pdf",{method:"POST", body:fd}); if(!r.ok) throw 0;
-        const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=currentSwimmerName.replace(/\s+/g,"_")+"_results.pdf"; a.click();
-      } catch { alert("Could not download results PDF."); }
+
+      html += `</table>`;
+
+      if (has) {
+        resultsBox.style.display = "block";
+        resultsContent.innerHTML = html;
+      } else {
+        resultsBox.style.display = "none";
+        resultsContent.innerHTML = "";
+      }
+    }
+
+    downloadResultsBtn.addEventListener("click", async () => {
+      if (!currentSwimmerName || currentEvents.length === 0) return;
+      const saved = loadResults(currentSwimmerName);
+      const payload = currentEvents.map(ev => {
+        const evId = `event-${ev.event_number}-${ev.heat}`;
+        return {
+          event_number: ev.event_number,
+          event_name: ev.event_name,
+          heat: ev.heat,
+          total_heats: ev.total_heats || null,
+          lane: ev.lane || null,
+          seed_time: ev.seed_time || "",
+          final_time: saved[evId] || ""
+        };
+      });
+      const fd = new FormData();
+      fd.append("swimmer_name", currentSwimmerName);
+      fd.append("results_json", JSON.stringify(payload));
+      try {
+        const r = await fetch("/generate-results-pdf", { method: "POST", body: fd });
+        if (!r.ok) throw 0;
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = currentSwimmerName.replace(/\s+/g, "_") + "_results.pdf";
+        a.click();
+      } catch {
+        alert("Could not download results PDF.");
+      }
     });
 
     // ---------- Pro preview/PDF ----------
-    const proPreviewBtn = document.getElementById("pro-preview-team");
-    const proPreviewBox = document.getElementById("pro-preview-box");
-    const proPreviewContent = document.getElementById("pro-preview-content");
-    const proDownloadBtn = document.getElementById("pro-download-team-pdf");
-    const proOrderBy = document.getElementById("pro-order-by");
-    const proMulti = document.getElementById("pro-multi-swimmers");
+    const proPreviewBtn         = document.getElementById("pro-preview-team");
+    const proPreviewBox         = document.getElementById("pro-preview-box");
+    const proPreviewContent     = document.getElementById("pro-preview-content");
+    const proDownloadBtn        = document.getElementById("pro-download-team-pdf");
+    const proOrderBy            = document.getElementById("pro-order-by");
+    const proMulti              = document.getElementById("pro-multi-swimmers");
+    const proResultsBox         = document.getElementById("pro-results-box");
+    const proResultsContent     = document.getElementById("pro-results-content");
+    const proDownloadResultsBtn = document.getElementById("pro-download-results-btn");
 
-    function needFile(){ const f=fileInput.files[0]; if(!f){ if(fileNeededNote) fileNeededNote.style.display="block"; return null;} if(fileNeededNote) fileNeededNote.style.display="none"; return f; }
+    function needFile() {
+      const f = fileInput.files[0];
+      if (!f) {
+        if (fileNeededNote) fileNeededNote.style.display = "block";
+        return null;
+      }
+      if (fileNeededNote) fileNeededNote.style.display = "none";
+      return f;
+    }
 
-    if (proPreviewBtn){
-      proPreviewBtn.addEventListener("click", async ()=>{
-        const file = needFile(); if(!file || !proMulti) return;
-        const selected = Array.from(proMulti.options).filter(o=>o.selected).map(o=>o.value);
-        if(selected.length===0){ alert("Select at least one swimmer."); return;}
-        const fetches = selected.map(name=>{
-          const fd=new FormData(); fd.append("swimmer_name",name); fd.append("file",file);
-          return fetch("/extract",{method:"POST", body:fd}).then(r=>{if(!r.ok) throw 0; return r.json();}).then(d=>({name, events:d.events||[]}));
-        });
-        try{
-          const res = await Promise.all(fetches);
-          const combined=[];
-          res.forEach(sw=> sw.events.forEach(ev=> combined.push({swimmer:sw.name, ...ev})));
+    if (proPreviewBtn) {
+      proPreviewBtn.addEventListener("click", async () => {
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter(o => o.selected)
+          .map(o => o.value);
+
+        if (selected.length === 0) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        const file = fileInput.files[0];
+
+        // -------- CASE 1: No PDF file, but we have saved allEvents in localStorage --------
+        if (!file && allEvents.length > 0) {
+          const combined = [];
+
+          selected.forEach(name => {
+            const mine = allEvents.filter(ev =>
+              ev.swimmer_name &&
+              ev.swimmer_name.toLowerCase().includes(name.toLowerCase())
+            );
+            mine.forEach(ev => {
+              combined.push({
+                swimmer: ev.swimmer_name,
+                event_number: ev.event_number,
+                event_name: ev.event_name,
+                heat: ev.heat,
+                total_heats: ev.total_heats,
+                lane: ev.lane,
+                seed_time: ev.seed_time || ""
+              });
+            });
+          });
+
           const order = proOrderBy ? proOrderBy.value : "swimmer";
-          if(order==="event"){ combined.sort((a,b)=> (a.event_number-b.event_number)||((a.heat||0)-(b.heat||0))||a.swimmer.localeCompare(b.swimmer)); }
-          else { combined.sort((a,b)=> a.swimmer.localeCompare(b.swimmer)||(a.event_number-b.event_number)||((a.heat||0)-(b.heat||0))); }
-          if(combined.length===0){ proPreviewContent.innerHTML='<p class="muted">No events found for selected swimmers.</p>'; }
-          else {
-            let html=""; combined.forEach(it=>{
-              const th = it.total_heats ? ` of ${it.total_heats}` : "";
-              html += `<div style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
-                <div style="font-weight:bold;">${it.swimmer}</div>
-                <div>Event #${it.event_number} – ${it.event_name}</div>
-                <div style="font-size:.88rem; color:#444;">Heat: ${it.heat}${th} | Lane: ${it.lane??""} | Seed: ${it.seed_time??""}</div>
-              </div>`;
+          if (order === "event") {
+            combined.sort((a, b) =>
+              (a.event_number - b.event_number) ||
+              ((a.heat || 0) - (b.heat || 0)) ||
+              a.swimmer.localeCompare(b.swimmer)
+            );
+          } else {
+            combined.sort((a, b) =>
+              a.swimmer.localeCompare(b.swimmer) ||
+              (a.event_number - b.event_number) ||
+              ((a.heat || 0) - (b.heat || 0))
+            );
+          }
+
+          if (combined.length === 0) {
+            proPreviewContent.innerHTML =
+              '<p class="muted">No events found for selected swimmers.</p>';
+          } else {
+            let html = "";
+            combined.forEach(it => {
+              const th    = it.total_heats ? ` of ${it.total_heats}` : "";
+              const evId  = `event-${it.event_number}-${it.heat}`;
+              const seedT = it.seed_time || "";
+              const saved = loadResults(it.swimmer);
+              const finalT = (saved && saved[evId]) || "";
+              const diff = computeDiffDisplay(seedT, finalT);
+
+              html += `
+                <div class="pro-event-row" style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
+                  <div style="font-weight:bold;">${it.swimmer}</div>
+                  <div>Event #${it.event_number} – ${it.event_name}</div>
+                  <div style="font-size:.88rem; color:#444;">
+                    Heat: ${it.heat}${th} | Lane: ${it.lane ?? ""} | Seed: ${seedT}
+                  </div>
+                  <div style="margin-top:0.3rem;">
+                    Final time:
+                    <input
+                      type="text"
+                      data-swimmer="${it.swimmer}"
+                      data-event-id="${evId}"
+                      data-seed="${seedT}"
+                      value="${finalT}"
+                      placeholder="e.g. 46.80 or 1:05.32"
+                      style="max-width:140px;"
+                    />
+                    <span
+                      class="pro-diff ${diff.className}"
+                      data-diff-for="${it.swimmer}-${evId}"
+                    >${diff.text}</span>
+                  </div>
+                </div>`;
             });
             proPreviewContent.innerHTML = html;
           }
-          proPreviewBox.style.display="block";
-        } catch { alert("Could not load combined preview."); }
+
+          proPreviewBox.style.display = "block";
+          statusEl.textContent =
+            "Showing combined preview from saved heat sheet (PDF file not attached).";
+
+          if (typeof refreshProResultsIfNeeded === "function") {
+            refreshProResultsIfNeeded();
+          }
+          return;
+        }
+
+        // -------- CASE 2: We have a PDF file → use backend /extract calls --------
+        const realFile = needFile();
+        if (!realFile) return;
+
+        const fetches = selected.map(name => {
+          const fd = new FormData();
+          fd.append("swimmer_name", name);
+          fd.append("file", realFile);
+          return fetch("/extract", { method: "POST", body: fd })
+            .then(r => { if (!r.ok) throw 0; return r.json(); })
+            .then(d => ({ name, events: d.events || [] }));
+        });
+
+        try {
+          const res = await Promise.all(fetches);
+          const combined = [];
+          res.forEach(sw =>
+            sw.events.forEach(ev =>
+              combined.push({ swimmer: sw.name, ...ev })
+            )
+          );
+
+          const order = proOrderBy ? proOrderBy.value : "swimmer";
+          if (order === "event") {
+            combined.sort((a, b) =>
+              (a.event_number - b.event_number) ||
+              ((a.heat || 0) - (b.heat || 0)) ||
+              a.swimmer.localeCompare(b.swimmer)
+            );
+          } else {
+            combined.sort((a, b) =>
+              a.swimmer.localeCompare(b.swimmer) ||
+              (a.event_number - b.event_number) ||
+              ((a.heat || 0) - (b.heat || 0))
+            );
+          }
+
+          if (combined.length === 0) {
+            proPreviewContent.innerHTML =
+              '<p class="muted">No events found for selected swimmers.</p>';
+          } else {
+            let html = "";
+            combined.forEach(it => {
+              const th    = it.total_heats ? ` of ${it.total_heats}` : "";
+              const evId  = `event-${it.event_number}-${it.heat}`;
+              const seedT = it.seed_time || "";
+              const saved = loadResults(it.swimmer);
+              const finalT = (saved && saved[evId]) || "";
+              const diff = computeDiffDisplay(seedT, finalT);
+
+              html += `
+                <div class="pro-event-row" style="padding:4px 6px; border-bottom:1px solid #dce3ff;">
+                  <div style="font-weight:bold;">${it.swimmer}</div>
+                  <div>Event #${it.event_number} – ${it.event_name}</div>
+                  <div style="font-size:.88rem; color:#444;">
+                    Heat: ${it.heat}${th} | Lane: ${it.lane ?? ""} | Seed: ${seedT}
+                  </div>
+                  <div style="margin-top:0.3rem;">
+                    Final time:
+                    <input
+                      type="text"
+                      data-swimmer="${it.swimmer}"
+                      data-event-id="${evId}"
+                      data-seed="${seedT}"
+                      value="${finalT}"
+                      placeholder="e.g. 46.80 or 1:05.32"
+                      style="max-width:140px;"
+                    />
+                    <span
+                      class="pro-diff ${diff.className}"
+                      data-diff-for="${it.swimmer}-${evId}"
+                    >${diff.text}</span>
+                  </div>
+                </div>`;
+            });
+            proPreviewContent.innerHTML = html;
+          }
+
+          proPreviewBox.style.display = "block";
+
+          if (typeof refreshProResultsIfNeeded === "function") {
+            refreshProResultsIfNeeded();
+          }
+        } catch {
+          alert("Could not load combined preview.");
+        }
       });
     }
 
-    if (proDownloadBtn){
-      proDownloadBtn.addEventListener("click", async ()=>{
-        const file = needFile(); if(!file || !proMulti) return;
-        const selected = Array.from(proMulti.options).filter(o=>o.selected).map(o=>o.value);
-        if(selected.length===0){ alert("Select at least one swimmer."); return;}
-        const fd = new FormData(); fd.append("file", file); fd.append("swimmers_json", JSON.stringify(selected));
-        const order = proOrderBy ? proOrderBy.value : "swimmer"; fd.append("order_by", order);
-        try{ const r=await fetch("/generate-team-pdf",{method:"POST", body:fd}); if(!r.ok) throw 0;
-          const blob=await r.blob(); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="team_schedule.pdf"; a.click();
-        }catch{ alert("Could not download team PDF."); }
+    // Build a multi-swimmer "Results vs Seed" table using allEvents + saved final times
+    function buildProResultsTable(selectedNames) {
+      if (!allEvents.length) {
+        proResultsContent.innerHTML =
+          '<p class="warn">No heat sheet data available. Please upload a heat sheet first.</p>';
+        proResultsBox.style.display = "block";
+        return;
+      }
+
+      const rows = [];
+
+      selectedNames.forEach(name => {
+        const mine = allEvents.filter(ev =>
+          ev.swimmer_name && ev.swimmer_name.toLowerCase().includes(name.toLowerCase())
+        );
+        const saved = loadResults(name);
+
+        mine.forEach(ev => {
+          const evId = `event-${ev.event_number}-${ev.heat}`;
+          const finalT = (saved && saved[evId]) || "";
+          const seedT = ev.seed_time || "";
+
+          // Only show rows where a final time has been entered
+          if (!finalT) return;
+
+          let diff = "";
+          let diffClass = "";
+          if (seedT) {
+            const s = t2s(seedT);
+            const f = t2s(finalT);
+            if (s != null && f != null) {
+              const d = f - s;
+              diff = (d >= 0 ? "+" : "") + d.toFixed(2) + "s";
+              if (d < 0) diffClass = "diff-better";
+              else if (d > 0) diffClass = "diff-slower";
+              else diffClass = "diff-same";
+            }
+          }
+
+          rows.push({
+            swimmer: name,
+            event_number: ev.event_number,
+            event_name: ev.event_name,
+            seedT,
+            finalT,
+            diff,
+            diffClass
+          });
+        });
+      });
+
+      if (!rows.length) {
+        proResultsContent.innerHTML =
+          '<p class="muted">No results entered yet for the selected swimmers.</p>';
+        proResultsBox.style.display = "block";
+        return;
+      }
+
+      // Sort by swimmer, then event number
+      rows.sort(
+        (a, b) =>
+          a.swimmer.localeCompare(b.swimmer) ||
+          a.event_number - b.event_number
+      );
+
+      let html = `<table style="width:100%; border-collapse:collapse; font-size:0.9rem;">
+        <tr style="background:#eaf0ff;">
+          <th style="text-align:left;">Swimmer</th>
+          <th style="text-align:left;">Event</th>
+          <th>Seed</th>
+          <th>Final</th>
+          <th>Diff</th>
+        </tr>`;
+
+      rows.forEach(r => {
+        html += `
+          <tr>
+            <td>${r.swimmer}</td>
+            <td>#${r.event_number} – ${r.event_name}</td>
+            <td style="text-align:center;">${r.seedT}</td>
+            <td style="text-align:center;">${r.finalT}</td>
+            <td style="text-align:center;" class="${r.diffClass}">${r.diff}</td>
+          </tr>`;
+      });
+
+      html += `</table>`;
+      proResultsContent.innerHTML = html;
+      proResultsBox.style.display = "block";
+    }
+
+    // Button: Download one Results PDF per selected swimmer
+    if (proDownloadResultsBtn) {
+      proDownloadResultsBtn.addEventListener("click", async () => {
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter(o => o.selected)
+          .map(o => o.value);
+
+        if (!selected.length) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        if (!allEvents.length) {
+          alert("Please upload a heat sheet first.");
+          return;
+        }
+
+        // For each swimmer, build the payload from allEvents + saved results,
+        // then call the existing /generate-results-pdf endpoint (same as Free).
+        for (const name of selected) {
+          try {
+            const mine = allEvents.filter(ev =>
+              ev.swimmer_name && ev.swimmer_name.toLowerCase().includes(name.toLowerCase())
+            );
+            const saved = loadResults(name);
+
+            const payload = mine.map(ev => {
+              const evId = `event-${ev.event_number}-${ev.heat}`;
+              return {
+                event_number: ev.event_number,
+                event_name: ev.event_name,
+                heat: ev.heat,
+                total_heats: ev.total_heats || null,
+                lane: ev.lane || null,
+                seed_time: ev.seed_time || "",
+                final_time: (saved && saved[evId]) || ""
+              };
+            });
+
+            const fd = new FormData();
+            fd.append("swimmer_name", name);
+            fd.append("results_json", JSON.stringify(payload));
+
+            const r = await fetch("/generate-results-pdf", {
+              method: "POST",
+              body: fd
+            });
+            if (!r.ok) throw 0;
+
+            const blob = await r.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = name.replace(/\s+/g, "_") + "_results.pdf";
+            a.click();
+            URL.revokeObjectURL(url);
+          } catch {
+            alert(`Could not download results PDF for ${name}.`);
+          }
+        }
+      });
+    }
+
+    // Auto-build Results vs Seed whenever the Pro swimmer selection changes
+    function refreshProResultsIfNeeded() {
+      if (!proResultsBox || !proResultsContent || !proMulti) return;
+
+      const selected = Array.from(proMulti.options)
+        .filter(o => o.selected)
+        .map(o => o.value);
+
+      if (!selected.length) {
+        // Nothing selected → hide the box
+        proResultsBox.style.display = "none";
+        proResultsContent.innerHTML = "";
+        return;
+      }
+
+      buildProResultsTable(selected);
+    }
+
+    // Whenever the Pro multi-select changes, rebuild the table automatically
+    if (proMulti && proResultsBox && proResultsContent) {
+      proMulti.addEventListener("change", () => {
+        refreshProResultsIfNeeded();
+      });
+    }
+
+    // Let users edit final times directly in the Pro combined preview.
+    // This uses the same storageKeyFor / loadResults / saveResults per swimmer.
+    if (proPreviewContent) {
+      proPreviewContent.addEventListener("input", (e) => {
+        if (!e.target || !e.target.matches("input[data-swimmer][data-event-id]")) return;
+
+        const input = e.target;
+        const swimmer = input.getAttribute("data-swimmer");
+        const evId = input.getAttribute("data-event-id");
+        const seedT = input.getAttribute("data-seed") || "";
+        const finalT = input.value.trim();
+
+        if (!swimmer || !evId) return;
+
+        // Update localStorage for that swimmer
+        const saved = loadResults(swimmer);
+        saved[evId] = finalT;
+        saveResults(swimmer, saved);
+
+        // Update the diff label next to this input
+        const diffSpan = proPreviewContent.querySelector(
+          `span.pro-diff[data-diff-for="${swimmer}-${evId}"]`
+        );
+        if (diffSpan) {
+          const diffObj = computeDiff(seedT, finalT);
+          diffSpan.textContent = diffObj.text || "";
+
+          diffSpan.classList.remove("diff-better", "diff-slower", "diff-same");
+          if (diffObj.cls) diffSpan.classList.add(diffObj.cls);
+        }
+
+        // Also refresh the Pro results table if needed
+        if (typeof refreshProResultsIfNeeded === "function") {
+          refreshProResultsIfNeeded();
+        }
+      });
+    }
+
+    if (proDownloadBtn) {
+      proDownloadBtn.addEventListener("click", async () => {
+        const file = fileInput.files[0];
+
+        // If PDF is missing, warn user and exit
+        if (!file) {
+          alert(
+            "To download a new Team Schedule PDF, please re-upload the heat sheet PDF.\n\n" +
+            "Your swimmers, events, and timeline are still saved in this browser."
+          );
+          return;
+        }
+
+        if (!proMulti) return;
+
+        const selected = Array.from(proMulti.options)
+          .filter(o => o.selected)
+          .map(o => o.value);
+
+        if (selected.length === 0) {
+          alert("Select at least one swimmer.");
+          return;
+        }
+
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("swimmers_json", JSON.stringify(selected));
+
+        const orderBy = proOrderBy ? proOrderBy.value : "swimmer";
+        fd.append("order_by", orderBy);
+
+        try {
+          const r = await fetch("/generate-team-pdf", { method: "POST", body: fd });
+          if (!r.ok) throw 0;
+
+          const blob = await r.blob();
+          const url = URL.createObjectURL(blob);
+
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "team_schedule.pdf";
+          a.click();
+
+          URL.revokeObjectURL(url);
+        } catch {
+          alert("Could not create or download the Team Schedule PDF.");
+        }
       });
     }
 
@@ -437,49 +1289,159 @@
 
     let baselineOffsetMs = 0;     // re-baseline adjustment based on current event/heat
     let scheduledTimers = [];     // notifications
+    let tlCurEventChangeAttached = false;
+    let timelineRows = [];        // last rendered timeline rows
+    let countdownTimerId = null;  // interval for the countdown display
+        
+    const TIMELINE_STATE_KEY = "lssc-timeline-state";
 
-    function parseAmPm(str){
+    function saveTimelineState() {
+      try {
+        const startVal = tlStart ? tlStart.value : "";
+        const selectedSwimmers = tlSwimmers
+          ? Array.from(tlSwimmers.options).filter(o => o.selected).map(o => o.value)
+          : [];
+        const curEventVal = tlCurEvent ? tlCurEvent.value : "";
+        const curHeatVal = tlCurHeat ? tlCurHeat.value : "";
+
+        const payload = {
+          startVal,
+          selectedSwimmers,
+          curEventVal,
+          curHeatVal,
+        };
+        localStorage.setItem(TIMELINE_STATE_KEY, JSON.stringify(payload));
+      } catch (e) {
+        // If localStorage fails, just ignore; app still works.
+      }
+    }
+
+    function clearTimelineState() {
+      try {
+        localStorage.removeItem(TIMELINE_STATE_KEY);
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function restoreTimelineState() {
+      try {
+        const raw = localStorage.getItem(TIMELINE_STATE_KEY);
+        if (!raw) return;
+        const payload = JSON.parse(raw);
+        if (!payload) return;
+
+        const { startVal, selectedSwimmers, curEventVal, curHeatVal } = payload;
+
+        // Restore start time input
+        if (tlStart && startVal) {
+          tlStart.value = startVal;
+        }
+
+        // Restore selected swimmers in the timeline multi-select
+        if (tlSwimmers && Array.isArray(selectedSwimmers)) {
+          Array.from(tlSwimmers.options).forEach(o => {
+            o.selected = selectedSwimmers.includes(o.value);
+          });
+        }
+
+        // Restore current event/heat for update controls
+        if (tlCurEvent && curEventVal) {
+          tlCurEvent.value = String(curEventVal);
+          // trigger change so heats list is updated
+          tlCurEvent.dispatchEvent(new Event("change"));
+        }
+
+        if (tlCurHeat && curHeatVal) {
+          tlCurHeat.value = String(curHeatVal);
+        }
+
+        // If we have a valid start time and at least one swimmer, rebuild the timeline
+        if (startVal && selectedSwimmers && selectedSwimmers.length > 0) {
+          const s = parseAmPm(startVal);
+          if (s) {
+            renderTimeline(s);
+          }
+        }
+      } catch (e) {
+        // If anything goes wrong during restore, we just skip it.
+      }
+    }
+
+    function parseAmPm(str) {
       // Accept "hh:mm AM/PM" or "hh:mm" (assume AM/PM if included)
-      if(!str) return null;
+      if (!str) return null;
       const s = str.trim().toUpperCase();
       const m = s.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/);
-      if(!m) return null;
-      let hh = parseInt(m[1],10), mm = parseInt(m[2],10); const ap = m[3];
-      if (hh<1 || hh>12 || mm<0 || mm>59) return null;
+      if (!m) return null;
+      let hh = parseInt(m[1], 10), mm = parseInt(m[2], 10); const ap = m[3];
+      if (hh < 1 || hh > 12 || mm < 0 || mm > 59) return null;
       // Anchor to today
-      const d = new Date(); d.setSeconds(0,0);
-      if (ap==="AM" || ap==="PM"){
-        if (ap==="PM" && hh!==12) hh+=12;
-        if (ap==="AM" && hh===12) hh=0;
+      const d = new Date();
+      d.setSeconds(0, 0);
+      if (ap === "AM" || ap === "PM") {
+        if (ap === "PM" && hh !== 12) hh += 12;
+        if (ap === "AM" && hh === 12) hh = 0;
       } else {
         // If no AM/PM, leave 12-hr as-is; assume AM for <=11, treat 12 as noon
-        if (hh===12) hh=12; // noon
+        if (hh === 12) hh = 12; // noon
       }
       d.setHours(hh, mm, 0, 0);
       return d;
     }
 
-    function secsFromSeed(seed){
-      if(!seed) return 0;
-      if(seed.includes(":")){ const [m,rest]=seed.split(":"); return parseInt(m,10)*60 + parseFloat(rest); }
-      const f = parseFloat(seed); return isNaN(f)?0:f;
+    function secsFromSeed(seed) {
+      if (!seed) return 0;
+      if (seed.includes(":")) {
+        const [m, rest] = seed.split(":");
+        return parseInt(m, 10) * 60 + parseFloat(rest);
+      }
+      const f = parseFloat(seed);
+      return isNaN(f) ? 0 : f;
     }
 
-    function buildEventHeatDropdowns(){
+    function buildEventHeatDropdowns() {
       // fill tlCurEvent and tlCurHeat from allEvents
-      const events = [...new Set(allEvents.map(e=>e.event_number))].sort((a,b)=>a-b);
-      tlCurEvent.innerHTML = ""; events.forEach(ev=>{ const o=document.createElement("option"); o.value=String(ev); o.textContent=String(ev); tlCurEvent.appendChild(o); });
-      tlCurEvent.addEventListener("change", ()=>{
-        const evNum = parseInt(tlCurEvent.value,10);
-        const heats = allEvents.filter(e=>e.event_number===evNum).map(e=>e.heat);
-        const maxHeat = Math.max(...heats);
-        tlCurHeat.innerHTML = ""; for(let h=1; h<=maxHeat; h++){ const o=document.createElement("option"); o.value=String(h); o.textContent=String(h); tlCurHeat.appendChild(o); }
+      const events = [...new Set(allEvents.map(e => e.event_number))].sort((a, b) => a - b);
+
+      tlCurEvent.innerHTML = "";
+      events.forEach(ev => {
+        const o = document.createElement("option");
+        o.value = String(ev);
+        o.textContent = String(ev);
+        tlCurEvent.appendChild(o);
       });
-      // trigger once
-      if (events.length){ tlCurEvent.dispatchEvent(new Event("change")); }
+
+      // Attach the change handler only once
+      if (!tlCurEventChangeAttached) {
+        tlCurEvent.addEventListener("change", () => {
+          const evNum = parseInt(tlCurEvent.value, 10);
+          const heats = allEvents
+            .filter(e => e.event_number === evNum)
+            .map(e => e.heat);
+          if (!heats.length) {
+            tlCurHeat.innerHTML = "";
+            return;
+          }
+          const maxHeat = Math.max(...heats);
+          tlCurHeat.innerHTML = "";
+          for (let h = 1; h <= maxHeat; h++) {
+            const o = document.createElement("option");
+            o.value = String(h);
+            o.textContent = String(h);
+            tlCurHeat.appendChild(o);
+          }
+        });
+        tlCurEventChangeAttached = true;
+      }
+
+      // trigger once to populate heat list
+      if (events.length) {
+        tlCurEvent.dispatchEvent(new Event("change"));
+      }
     }
 
-    function computeHeatSchedule(startDate){
+    function computeHeatSchedule(startDate) {
       // returns Map key "ev|heat" -> Date
       const map = new Map();
       if (!allEvents.length) return map;
@@ -487,56 +1449,113 @@
       // For each (event,heat), we need a "first available seed time" in that heat.
       // We'll just take the first line encountered for that (event,heat).
       const byEvHeat = {};
-      allEvents.forEach(row=>{
-        const k = row.event_number+"|"+row.heat;
+      allEvents.forEach(row => {
+        const k = row.event_number + "|" + row.heat;
         if (!byEvHeat[k]) byEvHeat[k] = row; // first encountered
       });
 
       // Build ordered unique heats across meet
       const keys = Object.keys(byEvHeat)
-        .map(k=>{
-          const [e,h]=k.split("|").map(x=>parseInt(x,10));
-          return {e,h,key:k};
+        .map(k => {
+          const [e, h] = k.split("|").map(x => parseInt(x, 10));
+          return { e, h, key: k };
         })
-        .sort((a,b)=> (a.e-b.e) || (a.h-b.h));
+        .sort((a, b) => (a.e - b.e) || (a.h - b.h));
 
       let cursor = new Date(startDate.getTime()); // running clock
       let lastEvent = null;
 
-      keys.forEach(item=>{
-        const {e,h,key} = item;
-        if (lastEvent !== null){
+      keys.forEach(item => {
+        const { e, h, key } = item;
+        if (lastEvent !== null) {
           // gap between heats / events
-          if (e !== lastEvent) cursor = new Date(cursor.getTime() + 1000*60); // 60s between events
-          else cursor = new Date(cursor.getTime() + 1000*20);                 // 20s between heats
+          if (e !== lastEvent) cursor = new Date(cursor.getTime() + 1000 * 60); // 60s between events
+          else cursor = new Date(cursor.getTime() + 1000 * 20);                 // 20s between heats
         }
         // Heat duration = first available seed time in that heat
         const seed = byEvHeat[key].seed_time;
-        const durSec = Math.max( secsFromSeed(seed), 20 ); // floor to 20s to avoid 0s
+        const durSec = Math.max(secsFromSeed(seed), 20); // floor to 20s to avoid 0s
         // mark start time for this heat
         map.set(key, new Date(cursor.getTime()));
         // advance cursor by heat duration (so next heat starts after this one)
-        cursor = new Date(cursor.getTime() + durSec*1000);
+        cursor = new Date(cursor.getTime() + durSec * 1000);
         lastEvent = e;
       });
 
       return map;
     }
 
-    function clearTimers(){
-      scheduledTimers.forEach(t=>clearTimeout(t));
+    function clearTimers() {
+      scheduledTimers.forEach(t => clearTimeout(t));
       scheduledTimers = [];
     }
 
-    function scheduleNotifications(rows){
+    // Countdown helpers
+    function stopCountdownTimer() {
+      if (countdownTimerId !== null) {
+        clearInterval(countdownTimerId);
+        countdownTimerId = null;
+      }
+    }
+
+    function updateCountdownDisplay() {
+      const el = document.getElementById("timeline-countdown");
+      if (!el) return;
+
+      if (!timelineRows || timelineRows.length === 0) {
+        el.textContent = "";
+        return;
+      }
+
+      const now = new Date();
+      const futureRows = timelineRows.filter(r => r.time.getTime() >= now.getTime());
+
+      if (!futureRows.length) {
+        el.textContent = "All selected events have been completed.";
+        return;
+      }
+
+      const next = futureRows[0]; // rows are kept sorted by time
+      const diffMs = next.time.getTime() - now.getTime();
+      const totalSec = Math.floor(diffMs / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      const pad = n => String(n).padStart(2, "0");
+
+      const timeStr = next.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      let remaining;
+      if (hrs > 0) {
+        remaining = `${hrs}:${pad(mins)}:${pad(secs)}`;
+      } else {
+        remaining = `${mins}:${pad(secs)}`;
+      }
+
+      el.innerHTML = `Next event: ${timeStr} – ${next.swimmer}: ${next.label} 
+  (<span class="countdown-time">in ${remaining}</span>)`;
+    }
+
+    function startCountdownTimer() {
+      stopCountdownTimer();
+      updateCountdownDisplay();
+
+      const now = new Date();
+      const futureRows = timelineRows && timelineRows.filter(r => r.time.getTime() >= now.getTime());
+      if (!futureRows || !futureRows.length) {
+        return;
+      }
+      countdownTimerId = setInterval(updateCountdownDisplay, 1000);
+    }
+
+    function scheduleNotifications(rows) {
       if (!notifyToggle.checked) return;
       if (!("Notification" in window)) return;
-      Notification.requestPermission().then(perm=>{
-        if (perm!=="granted") return;
-        rows.forEach(r=>{
-          const msUntil = r.time.getTime() - Date.now() - (15*60*1000);
+      Notification.requestPermission().then(perm => {
+        if (perm !== "granted") return;
+        rows.forEach(r => {
+          const msUntil = r.time.getTime() - Date.now() - (15 * 60 * 1000);
           if (msUntil <= 0) return;
-          const id = setTimeout(()=>{
+          const id = setTimeout(() => {
             new Notification("Event reminder", { body: `${r.swimmer}: ${r.label} in ~15 minutes` });
           }, msUntil);
           scheduledTimers.push(id);
@@ -544,73 +1563,168 @@
       });
     }
 
-    function renderTimeline(startDate){
+    function renderTimeline(startDate) {
       // selected swimmers
-      const selected = Array.from(tlSwimmers.options).filter(o=>o.selected).map(o=>o.value);
-      if (!selected.length){ tlOut.innerHTML='<p class="warn">Select at least one swimmer for the timeline.</p>'; return; }
+      const selected = Array.from(tlSwimmers.options)
+        .filter(o => o.selected)
+        .map(o => o.value);
+
+      if (!selected.length) {
+        tlOut.innerHTML = '<p class="warn">Select at least one swimmer for the timeline.</p>';
+        timelineRows = [];
+        stopCountdownTimer();
+        const cd = document.getElementById("timeline-countdown");
+        if (cd) cd.textContent = "";
+        return;
+      }
 
       const heatMap = computeHeatSchedule(startDate);
-      if (heatMap.size===0){ tlOut.innerHTML='<p class="warn">Could not compute timeline from this heat sheet.</p>'; return; }
+      if (heatMap.size === 0) {
+        tlOut.innerHTML = '<p class="warn">Could not compute timeline from this heat sheet.</p>';
+        timelineRows = [];
+        stopCountdownTimer();
+        const cd = document.getElementById("timeline-countdown");
+        if (cd) cd.textContent = "";
+        return;
+      }
 
       // build rows (each selected swimmer’s entries with times)
       const rows = [];
-      selected.forEach(name=>{
-        const mine = allEvents.filter(e=> e.swimmer_name && e.swimmer_name.toLowerCase().includes(name.toLowerCase()));
-        mine.forEach(ev=>{
-          const k = ev.event_number+"|"+ev.heat;
+      selected.forEach(name => {
+        const mine = allEvents.filter(
+          e => e.swimmer_name && e.swimmer_name.toLowerCase().includes(name.toLowerCase())
+        );
+        mine.forEach(ev => {
+          const k = ev.event_number + "|" + ev.heat;
           const base = heatMap.get(k);
           if (!base) return;
-          // apply baselineOffsetMs only to this and later heats
           const adjusted = new Date(base.getTime() + baselineOffsetMs);
           rows.push({
             swimmer: name,
             time: adjusted,
-            label: `Event #${ev.event_number} – ${ev.event_name} (Heat ${ev.heat}${ev.total_heats?(" of "+ev.total_heats):""})`
+            event_number: ev.event_number,
+            heat: ev.heat,
+            label: `Event #${ev.event_number} – ${ev.event_name} (Heat ${ev.heat}${
+              ev.total_heats ? (" of " + ev.total_heats) : ""
+            })`
           });
         });
       });
 
-      rows.sort((a,b)=> a.time - b.time || a.swimmer.localeCompare(b.swimmer));
+      rows.sort((a, b) => a.time - b.time || a.swimmer.localeCompare(b.swimmer));
 
-      if (!rows.length){ tlOut.innerHTML='<p class="muted">No timeline rows for the selected swimmers.</p>'; return; }
+      if (!rows.length) {
+        tlOut.innerHTML = '<p class="muted">No timeline rows for the selected swimmers.</p>';
+        timelineRows = [];
+        stopCountdownTimer();
+        const cd = document.getElementById("timeline-countdown");
+        if (cd) cd.textContent = "";
+        return;
+      }
 
-      let html = `<table class="timeline"><thead><tr><th>Time</th><th>Swimmer</th><th>Event</th></tr></thead><tbody>`;
-      rows.forEach(r=>{
-        const t = r.time.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
-        html += `<tr><td>${t}</td><td>${r.swimmer}</td><td>${r.label}</td></tr>`;
+      // Save rows globally for countdown use
+      timelineRows = rows;
+
+      const now = new Date();
+      const currentEventVal = parseInt(tlCurEvent.value || "0", 10);
+      const currentHeatVal = parseInt(tlCurHeat.value || "0", 10);
+
+      let html = `<table class="timeline">
+        <thead>
+          <tr><th>Time</th><th>Swimmer</th><th>Event</th></tr>
+        </thead>
+        <tbody>`;
+
+      rows.forEach(r => {
+        const tStr = r.time.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        const diffMinutes = (r.time.getTime() - now.getTime()) / 60000;
+
+        // Determine base status: past / upcoming
+        let statusClass = "tl-upcoming";
+        if (r.time.getTime() < now.getTime()) {
+          statusClass = "tl-past";
+        }
+
+        // If this row matches the currently selected event/heat, treat as "current"
+        if (r.event_number === currentEventVal && r.heat === currentHeatVal) {
+          statusClass = "tl-current";
+        }
+
+        // Highlight events starting within 15 minutes (only if not already "current")
+        let soonClass = "";
+        if (statusClass === "tl-upcoming" && diffMinutes >= 0 && diffMinutes <= 15) {
+          soonClass = "timeline-soon";
+        }
+
+        html += `<tr class="${statusClass} ${soonClass}">
+          <td>${tStr}</td>
+          <td>${r.swimmer}</td>
+          <td>${r.label}</td>
+        </tr>`;
       });
+
       html += `</tbody></table>`;
       tlOut.innerHTML = html;
 
       clearTimers();
       scheduleNotifications(rows);
+      startCountdownTimer();
     }
 
-    tlBuildBtn.addEventListener("click", ()=>{
+    tlBuildBtn.addEventListener("click", () => {
       const s = parseAmPm(tlStart.value);
-      if(!s){ tlStatus.textContent="Enter a start time like 12:00 PM"; return; }
-      tlStatus.textContent="";
+      if (!s) {
+        tlStatus.textContent = "Enter a start time like 12:00 PM";
+        return;
+      }
+      tlStatus.textContent = "";
       baselineOffsetMs = 0; // reset baseline whenever rebuilding
+
+      // Make sure at least one swimmer is selected
+      const selected = Array.from(tlSwimmers.options).filter(o => o.selected);
+      if (!selected.length) {
+        tlStatus.textContent = "Select at least one swimmer for the timeline.";
+        return;
+      }
+
       renderTimeline(s);
+      saveTimelineState();
     });
 
-    tlClearBtn.addEventListener("click", ()=>{
-      tlOut.innerHTML = ""; baselineOffsetMs=0; clearTimers(); tlStatus.textContent="Timeline cleared.";
+    tlClearBtn.addEventListener("click", () => {
+      tlOut.innerHTML = "";
+      baselineOffsetMs = 0;
+      clearTimers();
+      timelineRows = [];
+      stopCountdownTimer();
+      const cd = document.getElementById("timeline-countdown");
+      if (cd) cd.textContent = "";
+      tlStatus.textContent = "Timeline cleared.";
+      clearTimelineState();
     });
 
     // Update timeline (re-baseline)
-    document.getElementById("timeline-apply-btn").addEventListener("click", ()=>{
+    document.getElementById("timeline-apply-btn").addEventListener("click", () => {
       const s = parseAmPm(tlStart.value);
-      if(!s){ tlStatus.textContent="Enter a start time like 12:00 PM"; return; }
+      if (!s) {
+        tlStatus.textContent = "Enter a start time like 12:00 PM";
+        return;
+      }
 
-      const evNum = parseInt(tlCurEvent.value||"0", 10);
-      const htNum = parseInt(tlCurHeat.value||"0", 10);
-      if (!evNum || !htNum){ tlStatus.textContent="Pick current event and heat."; return; }
+      const evNum = parseInt(tlCurEvent.value || "0", 10);
+      const htNum = parseInt(tlCurHeat.value || "0", 10);
+      if (!evNum || !htNum) {
+        tlStatus.textContent = "Pick current event and heat.";
+        return;
+      }
 
       const heatMap = computeHeatSchedule(s);
-      const key = evNum+"|"+htNum;
+      const key = evNum + "|" + htNum;
       const scheduled = heatMap.get(key);
-      if (!scheduled){ tlStatus.textContent="That event/heat not found in the heat sheet."; return; }
+      if (!scheduled) {
+        tlStatus.textContent = "That event/heat not found in the heat sheet.";
+        return;
+      }
 
       const now = new Date();
       // new baseline makes this heat start "now"
@@ -618,6 +1732,7 @@
 
       tlStatus.textContent = `Updated: aligned Event ${evNum} Heat ${htNum} to current time.`;
       renderTimeline(s);
+      saveTimelineState();
     });
 
     // ---------- Crowd Assist ----------
@@ -633,75 +1748,123 @@
     const crowdDismissBtn = document.getElementById("crowd-dismiss-btn");
 
     const CROWD_PREFS_KEY = "lssc-crowd-prefs";
-    let crowdLastSeen = 0; let crowdPollTimer=null;
+    let crowdLastSeen = 0;
+    let crowdPollTimer = null;
 
-    function saveCrowdPrefs(){ localStorage.setItem(CROWD_PREFS_KEY, JSON.stringify({ meet_code:(crowdMeetCode.value||"").trim(), display_name:(crowdDisplayName.value||"").trim() })); }
-    function loadCrowdPrefs(){ try{ const raw=localStorage.getItem(CROWD_PREFS_KEY); if(!raw) return; const p=JSON.parse(raw); if(p.meet_code) crowdMeetCode.value=p.meet_code; if(p.display_name) crowdDisplayName.value=p.display_name; }catch{} }
-    loadCrowdPrefs(); crowdMeetCode.addEventListener("input",saveCrowdPrefs); crowdDisplayName.addEventListener("input",saveCrowdPrefs);
+    function saveCrowdPrefs() {
+      localStorage.setItem(CROWD_PREFS_KEY, JSON.stringify({
+        meet_code: (crowdMeetCode.value || "").trim(),
+        display_name: (crowdDisplayName.value || "").trim()
+      }));
+    }
+    function loadCrowdPrefs() {
+      try {
+        const raw = localStorage.getItem(CROWD_PREFS_KEY);
+        if (!raw) return;
+        const p = JSON.parse(raw);
+        if (p.meet_code) crowdMeetCode.value = p.meet_code;
+        if (p.display_name) crowdDisplayName.value = p.display_name;
+      } catch {}
+    }
+    loadCrowdPrefs();
+    crowdMeetCode.addEventListener("input", saveCrowdPrefs);
+    crowdDisplayName.addEventListener("input", saveCrowdPrefs);
 
-    if (crowdAnnounceBtn){
-      crowdAnnounceBtn.addEventListener("click", async ()=>{
-        const meet=(crowdMeetCode.value||"").trim().toUpperCase();
-        const name=(crowdDisplayName.value||"").trim();
-        const ev=parseInt((crowdEventNumber.value||"0"),10);
-        const ht=parseInt((crowdHeatNumber.value||"0"),10);
-        if(!meet||!name||!ev||!ht){ crowdStatus.textContent="Enter meet code, your name, current event and heat."; return; }
-        try{
-          const r=await fetch("/crowd/broadcast",{method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({meet_code:meet, display_name:name, event_number:ev, heat_number:ht})});
-          if(!r.ok) throw 0;
-          crowdStatus.textContent="Announced to parents in this meet code.";
-        }catch{ crowdStatus.textContent="Could not broadcast update."; }
+    if (crowdAnnounceBtn) {
+      crowdAnnounceBtn.addEventListener("click", async () => {
+        const meet = (crowdMeetCode.value || "").trim().toUpperCase();
+        const name = (crowdDisplayName.value || "").trim();
+        const ev = parseInt((crowdEventNumber.value || "0"), 10);
+        const ht = parseInt((crowdHeatNumber.value || "0"), 10);
+        if (!meet || !name || !ev || !ht) {
+          crowdStatus.textContent = "To announce, enter the meet code, your name, and the current event and heat.";
+          return;
+        }
+
+        try {
+          const r = await fetch("/crowd/broadcast", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ meet_code: meet, display_name: name, event_number: ev, heat_number: ht })
+          });
+          if (!r.ok) throw 0;
+          crowdStatus.textContent = `Update sent. Parents using meet code ${meet} will see this event/heat.`;
+
+        } catch {
+          crowdStatus.textContent = "Could not broadcast update.";
+        }
       });
     }
 
-    function startCrowdPolling(){
+    function startCrowdPolling() {
       if (crowdPollTimer) clearInterval(crowdPollTimer);
-      crowdPollTimer = setInterval(async ()=>{
-        const meet=(crowdMeetCode.value||"").trim().toUpperCase(); if(!meet) return;
-        try{
-          const r=await fetch(`/crowd/updates?meet_code=${encodeURIComponent(meet)}&since=${crowdLastSeen}`);
-          if(!r.ok) return;
-          const d=await r.json();
-          if(d && d.latest && d.updated_at && d.updated_at>crowdLastSeen){
+      crowdPollTimer = setInterval(async () => {
+        const meet = (crowdMeetCode.value || "").trim().toUpperCase();
+        if (!meet) return;
+        try {
+          const r = await fetch(`/crowd/updates?meet_code=${encodeURIComponent(meet)}&since=${crowdLastSeen}`);
+          if (!r.ok) return;
+          const d = await r.json();
+          if (d && d.latest && d.updated_at && d.updated_at > crowdLastSeen) {
             crowdLastSeen = d.updated_at;
             const u = d.latest;
             crowdIncomingText.textContent = `${u.display_name} says Event ${u.event_number}, Heat ${u.heat_number}. Apply to your timeline?`;
-            crowdIncoming.style.display="block";
-            crowdIncoming.dataset.evnum=String(u.event_number);
-            crowdIncoming.dataset.htnum=String(u.heat_number);
+            crowdIncoming.style.display = "block";
+            crowdIncoming.dataset.evnum = String(u.event_number);
+            crowdIncoming.dataset.htnum = String(u.heat_number);
           }
-        }catch{}
+        } catch {}
       }, 25000);
     }
     startCrowdPolling();
 
-    crowdApplyBtn.addEventListener("click", ()=>{
-      const evNum=parseInt(crowdIncoming.dataset.evnum||"0",10);
-      const htNum=parseInt(crowdIncoming.dataset.htnum||"0",10);
-      crowdIncoming.style.display="none";
-      if (tlCurEvent && tlCurHeat){
-        tlCurEvent.value=String(evNum);
+    crowdApplyBtn.addEventListener("click", () => {
+      const evNum = parseInt(crowdIncoming.dataset.evnum || "0", 10);
+      const htNum = parseInt(crowdIncoming.dataset.htnum || "0", 10);
+      crowdIncoming.style.display = "none";
+      if (tlCurEvent && tlCurHeat) {
+        tlCurEvent.value = String(evNum);
         tlCurEvent.dispatchEvent(new Event("change"));
-        tlCurHeat.value=String(htNum);
+        tlCurHeat.value = String(htNum);
         document.getElementById("timeline-apply-btn").click();
+        crowdStatus.textContent = `Applied crowd update: Event ${evNum}, Heat ${htNum} used to re-align your timeline.`;
       }
     });
-    crowdDismissBtn.addEventListener("click", ()=> crowdIncoming.style.display="none" );
+
+    crowdDismissBtn.addEventListener("click", () => crowdIncoming.style.display = "none");
 
     // ---------- Free: schedule PDF ----------
-    btn.addEventListener("click", async ()=>{
-      const file=fileInput.files[0], swimmerName=swimmerSelect.value;
-      if(!file||!swimmerName){ statusEl.textContent="Please upload a file and select a swimmer."; return; }
-      btn.disabled=true; btn.textContent="Generating…";
-      const fd=new FormData(); fd.append("swimmer_name",swimmerName); fd.append("file",file);
-      try{
-        const r=await fetch("/generate-pdf",{method:"POST", body:fd}); if(!r.ok) throw 0;
-        const blob=await r.blob(); const url=URL.createObjectURL(blob);
-        const a=document.createElement("a"); a.href=url; a.download=swimmerName.replace(/\s+/g,"_")+"_schedule.pdf"; a.click();
-        btn.textContent="Schedule Ready ✓";
-        setTimeout(()=>{ btn.textContent="Generate Schedule"; btn.disabled=false; }, 1600);
-      }catch{ statusEl.textContent="Error generating PDF."; btn.disabled=false; }
+    btn.addEventListener("click", async () => {
+      const file = fileInput.files[0], swimmerName = swimmerSelect.value;
+      if (!file || !swimmerName) {
+        statusEl.textContent = "Please upload a file and select a swimmer.";
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = "Generating…";
+      const fd = new FormData();
+      fd.append("swimmer_name", swimmerName);
+      fd.append("file", file);
+      try {
+        const r = await fetch("/generate-pdf", { method: "POST", body: fd });
+        if (!r.ok) throw 0;
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = swimmerName.replace(/\s+/g, "_") + "_schedule.pdf";
+        a.click();
+        btn.textContent = "Schedule Ready ✓";
+        setTimeout(() => { btn.textContent = "Generate Schedule"; btn.disabled = false; }, 1600);
+      } catch {
+        statusEl.textContent = "Error generating PDF.";
+        btn.disabled = false;
+      }
     });
+
+    // After all DOM references and handlers are ready, restore any saved meet data
+    restoreHeatData();
+
   </script>
 </body>
 </html>
